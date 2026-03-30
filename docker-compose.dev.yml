@@ -1,0 +1,29 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: normbase_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: normbase
+      POSTGRES_PASSWORD: normbase_password
+      POSTGRES_DB: normbase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U normbase"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - normbase_dev_net
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  normbase_dev_net:
+    driver: bridge

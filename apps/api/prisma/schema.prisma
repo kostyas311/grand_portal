@@ -1,0 +1,284 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MANAGER
+  ADMIN
+}
+
+enum CardStatus {
+  NEW
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum CardPriority {
+  OPTIONAL
+  NORMAL
+  URGENT
+  CRITICAL
+}
+
+enum MaterialType {
+  FILE
+  EXTERNAL_LINK
+}
+
+enum HistoryAction {
+  CREATED
+  STATUS_CHANGED
+  EXECUTOR_CHANGED
+  REVIEWER_CHANGED
+  SOURCE_MATERIAL_ADDED
+  SOURCE_MATERIAL_REMOVED
+  RESULT_ADDED
+  RETURNED_WITH_ERRORS
+  COMPLETED
+  CANCELLED
+  FIELD_UPDATED
+}
+
+model User {
+  id           String    @id @default(uuid())
+  fullName     String    @map("full_name")
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(USER)
+  isActive     Boolean   @default(true) @map("is_active")
+  position     String?
+  phone        String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  // Relations
+  refreshTokens    RefreshToken[]
+  createdCards     Card[]           @relation("CardCreator")
+  executorCards    Card[]           @relation("CardExecutor")
+  reviewerCards    Card[]           @relation("CardReviewer")
+  lastChangedCards Card[]           @relation("CardLastChanger")
+  sourceMaterials  SourceMaterial[]
+  resultVersions   ResultVersion[]
+  cardHistory      CardHistory[]
+  reviewComments   ReviewComment[]
+  createdSources   DataSource[]
+  watchedCards     CardWatcher[]
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model DataSource {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  website     String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User   @relation(fields: [createdById], references: [id])
+  cards     Card[]
+
+  @@index([isActive])
+  @@index([name])
+  @@map("data_sources")
+}
+
+model Card {
+  id            String       @id @default(uuid())
+  publicId      String       @unique @map("public_id")
+  dataSourceId  String?      @map("data_source_id")
+  extraTitle    String?      @map("extra_title")
+  month         Int
+  year          Int
+  description   String?
+  status        CardStatus   @default(NEW)
+  priority      CardPriority @default(NORMAL)
+  dueDate       DateTime?    @map("due_date") @db.Date
+  executorId    String?      @map("executor_id")
+  reviewerId    String?      @map("reviewer_id")
+  createdById   String       @map("created_by")
+  lastChangedById String?    @map("last_changed_by")
+  parentId      String?      @map("parent_id")
+  isLocked      Boolean      @default(false) @map("is_locked")
+  isArchived    Boolean      @default(false) @map("is_archived")
+  cancelReason  String?      @map("cancel_reason")
+  completedAt   DateTime?    @map("completed_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  dataSource    DataSource?    @relation(fields: [dataSourceId], references: [id])
+  executor      User?          @relation("CardExecutor", fields: [executorId], references: [id])
+  reviewer      User?          @relation("CardReviewer", fields: [reviewerId], references: [id])
+  createdBy     User           @relation("CardCreator", fields: [createdById], references: [id])
+  lastChangedBy User?          @relation("CardLastChanger", fields: [lastChangedById], references: [id])
+  parent        Card?          @relation("CardHierarchy", fields: [parentId], references: [id])
+
+  sourceMaterials SourceMaterial[]
+  resultVersions  ResultVersion[]
+  history         CardHistory[]
+  comments        ReviewComment[]
+  watchers        CardWatcher[]
+  children        Card[]          @relation("CardHierarchy")
+
+  @@index([status])
+  @@index([dataSourceId])
+  @@index([executorId])
+  @@index([reviewerId])
+  @@index([createdById])
+  @@index([dueDate])
+  @@index([priority])
+  @@index([year, month])
+  @@index([isArchived])
+  @@index([isLocked])
+  @@index([parentId])
+  @@map("cards")
+}
+
+model SourceMaterial {
+  id           String       @id @default(uuid())
+  cardId       String       @map("card_id")
+  materialType MaterialType @map("material_type")
+  title        String
+  description  String?
+  // FILE fields
+  filePath     String?      @map("file_path")
+  fileName     String?      @map("file_name")
+  fileSize     BigInt?      @map("file_size")
+  mimeType     String?      @map("mime_type")
+  fileHash     String?      @map("file_hash")
+  // EXTERNAL_LINK fields
+  externalUrl  String?      @map("external_url")
+  uploadedById String       @map("uploaded_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  card       Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@index([cardId])
+  @@map("source_materials")
+}
+
+model ResultVersion {
+  id            String     @id @default(uuid())
+  cardId        String     @map("card_id")
+  versionNumber Int        @map("version_number")
+  createdById   String     @map("created_by")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  comment       String?
+  statusContext String?    @map("status_context")
+  isCurrent     Boolean    @default(true) @map("is_current")
+
+  card      Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdBy User         @relation(fields: [createdById], references: [id])
+  items     ResultItem[]
+  comments  ReviewComment[]
+
+  @@unique([cardId, versionNumber])
+  @@index([cardId])
+  @@index([isCurrent])
+  @@map("result_versions")
+}
+
+model ResultItem {
+  id              String       @id @default(uuid())
+  resultVersionId String       @map("result_version_id")
+  itemType        MaterialType @map("item_type")
+  title           String
+  description     String?
+  // FILE fields
+  filePath        String?      @map("file_path")
+  fileName        String?      @map("file_name")
+  fileSize        BigInt?      @map("file_size")
+  mimeType        String?      @map("mime_type")
+  fileHash        String?      @map("file_hash")
+  // EXTERNAL_LINK fields
+  externalUrl     String?      @map("external_url")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  resultVersion ResultVersion @relation(fields: [resultVersionId], references: [id], onDelete: Cascade)
+
+  @@index([resultVersionId])
+  @@map("result_items")
+}
+
+model CardHistory {
+  id         String        @id @default(uuid())
+  cardId     String        @map("card_id")
+  userId     String?       @map("user_id")
+  actionType HistoryAction @map("action_type")
+  oldValue   Json?         @map("old_value")
+  newValue   Json?         @map("new_value")
+  comment    String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  card Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([cardId])
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@map("card_history")
+}
+
+model CardWatcher {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, userId])
+  @@index([cardId])
+  @@index([userId])
+  @@map("card_watchers")
+}
+
+model ReviewComment {
+  id              String   @id @default(uuid())
+  cardId          String   @map("card_id")
+  authorId        String   @map("author_id")
+  resultVersionId String?  @map("result_version_id")
+  text            String
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  card          Card           @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author        User           @relation(fields: [authorId], references: [id])
+  resultVersion ResultVersion? @relation(fields: [resultVersionId], references: [id])
+
+  @@index([cardId])
+  @@index([authorId])
+  @@map("review_comments")
+}

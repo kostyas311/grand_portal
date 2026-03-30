@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: normbase_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-normbase}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-normbase_password}
+      POSTGRES_DB: ${POSTGRES_DB:-normbase}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-normbase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - normbase_net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: normbase_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-normbase}:${POSTGRES_PASSWORD:-normbase_password}@postgres:5432/${POSTGRES_DB:-normbase}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-15m}
+      JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES:-7d}
+      STORAGE_PATH: /app/storage
+      MAX_FILE_SIZE: ${MAX_FILE_SIZE:-524288000}
+      ZIP_SIZE_LIMIT: ${ZIP_SIZE_LIMIT:-524288000}
+      NODE_ENV: production
+      PORT: 3001
+    volumes:
+      - ./storage:/app/storage
+    networks:
+      - normbase_net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    container_name: normbase_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: /api
+    networks:
+      - normbase_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: normbase_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+      - web
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - normbase_net
+
+volumes:
+  postgres_data:
+
+networks:
+  normbase_net:
+    driver: bridge
