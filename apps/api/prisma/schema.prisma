@@ -34,6 +34,11 @@ enum MaterialType {
   EXTERNAL_LINK
 }
 
+enum WatchSource {
+  AUTO
+  MANUAL
+}
+
 enum HistoryAction {
   CREATED
   STATUS_CHANGED
@@ -46,6 +51,22 @@ enum HistoryAction {
   COMPLETED
   CANCELLED
   FIELD_UPDATED
+}
+
+enum NotificationType {
+  ASSIGNMENT_CHANGED
+  STATUS_CHANGED
+  REVIEW_REQUEST
+  COMMENT_ADDED
+  SOURCE_MATERIAL_ADDED
+  RESULT_ADDED
+  ADMIN_REQUEST_CREATED
+  ADMIN_REQUEST_COMPLETED
+}
+
+enum AdminRequestStatus {
+  NEW
+  DONE
 }
 
 model User {
@@ -73,6 +94,13 @@ model User {
   reviewComments   ReviewComment[]
   createdSources   DataSource[]
   watchedCards     CardWatcher[]
+  notifications    Notification[] @relation("NotificationRecipient")
+  sentNotifications Notification[] @relation("NotificationActor")
+  pendingNotifications PendingNotification[] @relation("PendingNotificationRecipient")
+  pendingSentNotifications PendingNotification[] @relation("PendingNotificationActor")
+  createdAdminRequests AdminRequest[] @relation("AdminRequestCreator")
+  completedAdminRequests AdminRequest[] @relation("AdminRequestCompleter")
+  updatedNotificationEmailSettings NotificationEmailSettings[] @relation("NotificationEmailSettingsUpdatedBy")
 
   @@index([email])
   @@index([role])
@@ -131,6 +159,8 @@ model Card {
   parentId      String?      @map("parent_id")
   isLocked      Boolean      @default(false) @map("is_locked")
   isArchived    Boolean      @default(false) @map("is_archived")
+  withoutResult Boolean      @default(false) @map("without_result")
+  withoutSourceMaterials Boolean @default(false) @map("without_source_materials")
   cancelReason  String?      @map("cancel_reason")
   completedAt   DateTime?    @map("completed_at")
   createdAt     DateTime     @default(now()) @map("created_at")
@@ -148,6 +178,8 @@ model Card {
   history         CardHistory[]
   comments        ReviewComment[]
   watchers        CardWatcher[]
+  notifications   Notification[]
+  pendingNotifications PendingNotification[]
   children        Card[]          @relation("CardHierarchy")
 
   @@index([status])
@@ -255,6 +287,7 @@ model CardWatcher {
   id        String   @id @default(uuid())
   cardId    String   @map("card_id")
   userId    String   @map("user_id")
+  source    WatchSource @default(MANUAL)
   createdAt DateTime @default(now()) @map("created_at")
 
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -264,6 +297,116 @@ model CardWatcher {
   @@index([cardId])
   @@index([userId])
   @@map("card_watchers")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  cardId    String?          @map("card_id")
+  adminRequestId String?     @map("admin_request_id")
+  actorId   String?          @map("actor_id")
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  card  Card? @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  adminRequest AdminRequest? @relation(fields: [adminRequestId], references: [id], onDelete: Cascade)
+  actor User? @relation("NotificationActor", fields: [actorId], references: [id])
+
+  @@index([userId])
+  @@index([cardId])
+  @@index([adminRequestId])
+  @@index([actorId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model PendingNotification {
+  id             String           @id @default(uuid())
+  userId         String           @map("user_id")
+  cardId         String?          @map("card_id")
+  adminRequestId String?          @map("admin_request_id")
+  actorId        String?          @map("actor_id")
+  type           NotificationType
+  title          String
+  message        String
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  user         User          @relation("PendingNotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  card         Card?         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  adminRequest AdminRequest? @relation(fields: [adminRequestId], references: [id], onDelete: Cascade)
+  actor        User?         @relation("PendingNotificationActor", fields: [actorId], references: [id])
+
+  @@index([userId])
+  @@index([cardId])
+  @@index([adminRequestId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("pending_notifications")
+}
+
+model NotificationEmailSettings {
+  id         String   @id @default("default")
+  isEnabled  Boolean  @default(false) @map("is_enabled")
+  host       String?
+  port       Int?
+  secure     Boolean  @default(false)
+  username   String?
+  password   String?
+  fromEmail  String?  @map("from_email")
+  fromName   String?  @map("from_name")
+  replyTo    String?  @map("reply_to")
+  updatedById String? @map("updated_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("NotificationEmailSettingsUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([isEnabled])
+  @@index([updatedById])
+  @@map("notification_email_settings")
+}
+
+model AdminRequest {
+  id               String             @id @default(uuid())
+  publicId         String             @unique @map("public_id")
+  description      String
+  status           AdminRequestStatus @default(NEW)
+  createdById      String             @map("created_by")
+  completedById    String?            @map("completed_by")
+  completionComment String?           @map("completion_comment")
+  completedAt      DateTime?          @map("completed_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  createdBy    User                 @relation("AdminRequestCreator", fields: [createdById], references: [id])
+  completedBy  User?                @relation("AdminRequestCompleter", fields: [completedById], references: [id])
+  links        AdminRequestLink[]
+  notifications Notification[]
+  pendingNotifications PendingNotification[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([completedById])
+  @@index([createdAt])
+  @@map("admin_requests")
+}
+
+model AdminRequestLink {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  url       String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request AdminRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("admin_request_links")
 }
 
 model ReviewComment {

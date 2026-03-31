@@ -5,9 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
-  ArrowLeft, Edit, Trash2, Lock, User, Calendar,
+  ArrowLeft, Edit3, Trash2, Lock, User, Calendar, AlertTriangle,
   Paperclip, FileText, MessageSquare,
-  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch,
+  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -56,6 +56,7 @@ export default function CardDetailPage() {
   const [resLinkUrl, setResLinkUrl] = useState('');
   const [resLinkTitle, setResLinkTitle] = useState('');
   const [resLinkDescription, setResLinkDescription] = useState('');
+  const [showPreviousResults, setShowPreviousResults] = useState(false);
 
   const handleUploadMaterial = async () => {
     setMatUploading(true);
@@ -128,11 +129,13 @@ export default function CardDetailPage() {
       cardsApi.changeStatus(id, status, comment, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['card', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-list'] });
+      queryClient.invalidateQueries({ queryKey: ['all-cards-kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['all-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-cards'] });
       toast.success('Статус изменён');
-      setShowStatusDialog(false);
-      setPendingStatus(null);
-      setStatusComment('');
-      setStatusReason('');
+      closeStatusDialog();
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message || 'Ошибка изменения статуса';
@@ -172,6 +175,8 @@ export default function CardDetailPage() {
   const watchMutation = useMutation({
     mutationFn: () => cardsApi.toggleWatch(id),
     onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kanban'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-list'] });
       refetchWatch();
       toast.success(res.watching ? 'Вы следите за карточкой' : 'Вы отписались от карточки');
     },
@@ -216,24 +221,54 @@ export default function CardDetailPage() {
   }
 
   const isLocked = card.isLocked;
+  const isAdmin = user?.role === 'ADMIN';
+  const isExecutor = !!user?.id && card.executorId === user.id;
+  const isReviewer = !!user?.id && card.reviewerId === user.id;
+  const isCreator = !!user?.id && card.createdById === user.id;
+  const canEditWorkingCard = !isLocked && (isAdmin || (card.status === 'IN_PROGRESS' && isExecutor));
+  const canReviewCard = !isLocked && (isAdmin || (card.status === 'REVIEW' && isReviewer));
+  const canCommentInformationalCard =
+    !!card.withoutSourceMaterials && !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const canAddComment = canReviewCard || canCommentInformationalCard;
+  const showCommentsSection = canAddComment || card.comments?.length > 0 || !!card.withoutSourceMaterials;
+  const canManageAssignments = !isLocked && isAdmin;
+  const canCancelCard = !isLocked && ['NEW', 'IN_PROGRESS', 'REVIEW'].includes(card.status);
   const cardUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/cards/${card.publicId}`
     : `/cards/${card.publicId}`;
 
   const getNextStatuses = () => {
-    const transitions: Record<string, string[]> = {
-      NEW: ['IN_PROGRESS', 'CANCELLED'],
-      IN_PROGRESS: ['REVIEW', 'CANCELLED'],
-      REVIEW: ['DONE', 'IN_PROGRESS', 'CANCELLED'],
-      DONE: [],
-      CANCELLED: [],
-    };
-    return transitions[card.status] || [];
+    if (isAdmin) {
+      const transitions: Record<string, string[]> = {
+        NEW: ['IN_PROGRESS', 'CANCELLED'],
+        IN_PROGRESS: ['REVIEW', 'CANCELLED'],
+        REVIEW: ['DONE', 'IN_PROGRESS', 'CANCELLED'],
+        DONE: [],
+        CANCELLED: [],
+      };
+      return transitions[card.status] || [];
+    }
+
+    if (card.status === 'NEW' && isExecutor) return ['IN_PROGRESS'];
+    if (card.status === 'IN_PROGRESS' && isExecutor) {
+      return canCancelCard ? ['REVIEW', 'CANCELLED'] : ['REVIEW'];
+    }
+    if (card.status === 'REVIEW' && isReviewer) {
+      return canCancelCard ? ['DONE', 'IN_PROGRESS', 'CANCELLED'] : ['DONE', 'IN_PROGRESS'];
+    }
+    return canCancelCard ? ['CANCELLED'] : [];
   };
 
   const handleStatusClick = (status: string) => {
     setPendingStatus(status);
     setShowStatusDialog(true);
+  };
+
+  const closeStatusDialog = () => {
+    setShowStatusDialog(false);
+    setPendingStatus(null);
+    setStatusComment('');
+    setStatusReason('');
   };
 
   const handleStatusConfirm = () => {
@@ -258,165 +293,272 @@ export default function CardDetailPage() {
   };
 
   const currentVersion = card.resultVersions?.find((v: any) => v.isCurrent);
+  const isOverdue = !!card.dueDate && new Date(card.dueDate) < new Date() && card.status !== 'DONE';
+  const previousVersions = card.resultVersions?.filter((v: any) => !v.isCurrent) || [];
+
+  const renderResultVersion = (version: any, isHistorical = false) => (
+    <div
+      key={version.id}
+      className={`border rounded-sm p-4 ${
+        isHistorical
+          ? 'border-slate-200 bg-slate-50/70'
+          : 'border-green-200 bg-green-50/30'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3 gap-3">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="text-sm font-semibold text-gray-700">
+            Версия {version.versionNumber}
+          </span>
+          {!isHistorical && (
+            <span className="badge badge-done">Актуальная</span>
+          )}
+          <span className="text-xs text-gray-400">
+            {version.createdBy?.fullName} · {formatRelative(version.createdAt)}
+          </span>
+        </div>
+        {version.items?.some((i: any) => i.itemType === 'FILE') && (
+          <a
+            href={resultsApi.downloadVersionAllUrl(id, version.id)}
+            className="btn-secondary text-xs px-3 py-1.5 shrink-0"
+            download
+          >
+            <Download className="w-3 h-3" />
+            Скачать ZIP
+          </a>
+        )}
+      </div>
+
+      {version.comment && (
+        <p className="text-sm text-gray-600 mb-3 italic">"{version.comment}"</p>
+      )}
+
+      <div className="space-y-1">
+        {version.items?.map((item: any) => (
+          <div key={item.id} className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 text-sm text-gray-600 min-w-0 flex-1">
+              {item.itemType === 'FILE' ? (
+                <FileText className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
+              ) : isLocalPath(item.externalUrl) ? (
+                <span className="flex-shrink-0 mt-0.5">📁</span>
+              ) : (
+                <ExternalLink className="w-3 h-3 text-green-400 flex-shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0">
+                <div className="truncate">{item.title}</div>
+                {item.itemType === 'EXTERNAL_LINK' && (
+                  <div className="text-xs text-gray-400 font-mono truncate">{item.externalUrl}</div>
+                )}
+                {item.fileSize && (
+                  <span className="text-xs text-gray-400">
+                    ({formatFileSize(Number(item.fileSize))})
+                  </span>
+                )}
+              </div>
+            </div>
+            {item.itemType === 'FILE' ? (
+              <a
+                href={resultsApi.downloadItemUrl(id, version.id, item.id)}
+                className="text-xs text-primary hover:underline flex-shrink-0"
+                download
+              >
+                Скачать
+              </a>
+            ) : (
+              <button
+                className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+                title="Скопировать"
+                onClick={() => copyUrl(item.id, item.externalUrl)}
+              >
+                {copiedUrlId === item.id
+                  ? <Check className="w-3 h-3 text-green-500" />
+                  : <Copy className="w-3 h-3" />
+                }
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <AppLayout>
       <div className="page-container">
-        {/* Back + Actions header */}
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/cards" className="btn-ghost text-sm">
-            <ArrowLeft className="w-4 h-4" />
-            Назад к карточкам
-          </Link>
-          <div className="flex items-center gap-2">
-            <CopyLink url={cardUrl} />
-            <button
-              className={`btn-secondary text-sm ${watchStatus?.watching ? 'text-blue-600 border-blue-300 bg-blue-50 hover:bg-blue-100' : ''}`}
-              onClick={() => watchMutation.mutate()}
-              disabled={watchMutation.isPending}
-              title={watchStatus?.watching ? 'Отписаться от карточки' : 'Следить за карточкой'}
-            >
-              {watchStatus?.watching
-                ? <BellOff className="w-4 h-4" />
-                : <Bell className="w-4 h-4" />
-              }
-              <span>
-                {watchStatus?.watching ? 'Отписаться' : 'Следить'}
-                {watchStatus?.watcherCount ? ` (${watchStatus.watcherCount})` : ''}
-              </span>
-            </button>
-            {!isLocked && (
-              <Link href={`/cards/${card.publicId}/edit`} className="btn-secondary">
-                <Edit className="w-4 h-4" />
-                Редактировать
-              </Link>
-            )}
-            {user?.role === 'ADMIN' && (
-              <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
-                <Trash2 className="w-4 h-4" />
-                Удалить
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Main card info */}
-        <div className="card mb-4">
-          <div className="card-header">
-            <div>
-              <div className="flex items-center gap-3 mb-1">
-                <span className="font-mono text-sm text-gray-400">{card.publicId}</span>
-                <CardStatusBadge status={card.status} />
-                <CardPriorityBadge priority={card.priority} />
-                {isLocked && (
-                  <span className="badge bg-gray-100 text-gray-500">
-                    <Lock className="w-3 h-3" />
-                    Закрыта
-                  </span>
-                )}
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Карточки</div>
+                <div className="page-chip-row mt-2">
+                  <span className="page-chip font-mono">{card.publicId}</span>
+                  <CardStatusBadge status={card.status} />
+                  <CardPriorityBadge priority={card.priority} />
+                  {card.withoutSourceMaterials && (
+                    <span className="page-chip">Без исходных данных</span>
+                  )}
+                  {card.withoutSourceMaterials && card.sourceMaterials?.length === 0 && (
+                    <span className="attention-chip">
+                      <AlertTriangle className="w-3 h-3" />
+                      Информационная
+                    </span>
+                  )}
+                  {card.withoutResult && (
+                    <span className="page-chip">Без результата</span>
+                  )}
+                  {isLocked && (
+                    <span className="page-chip">
+                      <Lock className="w-3 h-3" />
+                      Закрыта
+                    </span>
+                  )}
+                </div>
+                <h1 className="mt-4 whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900">
+                  {card.dataSource?.name || 'Без источника'}
+                  {card.extraTitle && (
+                    <span className="text-slate-500 font-normal"> — {card.extraTitle}</span>
+                  )}
+                </h1>
+                <p className="page-subtitle">
+                  Период: {getMonthName(card.month)} {card.year}. Обновлено {formatRelative(card.updatedAt)}.
+                </p>
               </div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {card.dataSource?.name}
-                {card.extraTitle && (
-                  <span className="text-gray-500 font-normal"> — {card.extraTitle}</span>
-                )}
-              </h1>
-              <div className="text-sm text-gray-500 mt-1">
-                {getMonthName(card.month)} {card.year}
+
+              <div className="card-action-stack">
+                <div className="card-action-toolbar">
+                  <Link href="/cards" className="toolbar-button toolbar-button-ghost">
+                    <ArrowLeft className="w-4 h-4" />
+                    Назад к карточкам
+                  </Link>
+                  <CopyLink url={cardUrl} className="toolbar-button toolbar-button-ghost" />
+                  <button
+                    className={`toolbar-button toolbar-button-secondary ${watchStatus?.watching ? 'toolbar-button-active' : ''}`}
+                    onClick={() => watchMutation.mutate()}
+                    disabled={watchMutation.isPending}
+                    title={watchStatus?.watching ? 'Отписаться от карточки' : 'Следить за карточкой'}
+                  >
+                    {watchStatus?.watching
+                      ? <BellOff className="w-4 h-4" />
+                      : <Bell className="w-4 h-4" />
+                    }
+                    <span>
+                      {watchStatus?.watching ? 'Не следить' : 'Следить'}
+                      {watchStatus?.watcherCount ? ` (${watchStatus.watcherCount})` : ''}
+                    </span>
+                  </button>
+                  {canEditWorkingCard && (
+                    <Link
+                      href={`/cards/${card.publicId}/edit`}
+                      className="toolbar-button toolbar-button-secondary toolbar-button-icon"
+                      title="Редактировать карточку"
+                      aria-label="Редактировать карточку"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Link>
+                  )}
+                  {user?.role === 'ADMIN' && (
+                    <button
+                      className="toolbar-button toolbar-button-danger toolbar-button-icon"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      title="Удалить карточку"
+                      aria-label="Удалить карточку"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Status transitions */}
             {!isLocked && getNextStatuses().length > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                {getNextStatuses().map(status => {
-                  const labels: Record<string, string> = {
-                    IN_PROGRESS: card.status === 'REVIEW' ? 'Вернуть в работу' : 'Взять в работу',
-                    REVIEW: 'Отправить на проверку',
-                    DONE: 'Подтвердить готовность',
-                    CANCELLED: 'Отменить',
-                  };
-                  const cls = status === 'DONE' ? 'btn-primary' :
-                              status === 'CANCELLED' ? 'btn-danger' : 'btn-secondary';
-                  return (
-                    <button
-                      key={status}
-                      className={`${cls} text-sm`}
-                      onClick={() => handleStatusClick(status)}
+              <div className="card-status-toolbar">
+                <span className="card-status-toolbar-label">Действия по статусу</span>
+                <div className="card-status-toolbar-actions">
+                  {getNextStatuses().map(status => {
+                    const labels: Record<string, string> = {
+                      IN_PROGRESS: card.status === 'REVIEW' ? 'Вернуть в работу' : 'Взять в работу',
+                      REVIEW: 'Отправить на проверку',
+                      DONE: 'Подтвердить готовность',
+                      CANCELLED: 'Отменить',
+                    };
+                    const cls = status === 'DONE'
+                      ? 'toolbar-button toolbar-button-primary'
+                      : status === 'CANCELLED'
+                        ? 'toolbar-button toolbar-button-danger'
+                        : 'toolbar-button toolbar-button-secondary';
+                    return (
+                      <button
+                        key={status}
+                        className={cls}
+                        onClick={() => handleStatusClick(status)}
+                      >
+                        {labels[status] || status}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4 mt-5">
+              {card.description ? (
+                <div className="soft-note bg-blue-50 border-blue-100">
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{card.description}</p>
+                </div>
+              ) : null}
+
+              {card.cancelReason && (
+                <div className="soft-note bg-red-50 border-red-100">
+                  <span className="text-xs font-medium text-red-500 uppercase tracking-wide">Причина отмены</span>
+                  <p className="text-sm text-red-700 mt-1">{card.cancelReason}</p>
+                </div>
+              )}
+
+              <div className="meta-grid">
+                <div className="meta-panel">
+                  <div className="meta-label">Срок</div>
+                  <div className={`meta-value ${isOverdue ? 'text-red-500 font-medium' : ''}`}>
+                    {card.dueDate ? formatDate(card.dueDate) : 'Не указан'}
+                  </div>
+                </div>
+                <div className="meta-panel">
+                  <div className="meta-label">Создал</div>
+                  <div className="meta-value">{card.createdBy?.fullName || '—'}</div>
+                </div>
+                <div className="meta-panel">
+                  <div className="meta-label">Исполнитель</div>
+                  {canManageAssignments ? (
+                    <select
+                      className="input h-9 text-sm"
+                      value={card.executorId || ''}
+                      onChange={e => assignMutation.mutate({ executorId: e.target.value || null })}
                     >
-                      {labels[status] || status}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="card-body space-y-4">
-            {/* Description — highlighted */}
-            {card.description ? (
-              <div className="bg-blue-50 border border-blue-100 rounded-sm px-4 py-3">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{card.description}</p>
-              </div>
-            ) : null}
-
-            {card.cancelReason && (
-              <div className="bg-red-50 border border-red-100 rounded-sm px-4 py-3">
-                <span className="text-xs font-medium text-red-500 uppercase tracking-wide">Причина отмены</span>
-                <p className="text-sm text-red-700 mt-1">{card.cancelReason}</p>
-              </div>
-            )}
-
-            {/* Meta row — compact */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 border-t border-gray-100">
-              <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="text-gray-400">Срок:</span>
-                <span className={card.dueDate && new Date(card.dueDate) < new Date() && card.status !== 'DONE' ? 'text-red-500 font-medium' : 'text-gray-700'}>
-                  {card.dueDate ? formatDate(card.dueDate) : '—'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
-                <span className="text-gray-400">Создал:</span>
-                <span className="text-gray-700">{card.createdBy?.fullName}</span>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-sm">
-                <span className="text-gray-400">Исполнитель:</span>
-                {!isLocked ? (
-                  <select
-                    className="input py-0.5 h-7 text-sm w-auto min-w-32"
-                    value={card.executorId || ''}
-                    onChange={e => assignMutation.mutate({ executorId: e.target.value || null })}
-                  >
-                    <option value="">— не назначен —</option>
-                    {allUsers?.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.fullName}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-gray-700">{card.executor?.fullName || '—'}</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 text-sm">
-                <span className="text-gray-400">Проверяющий:</span>
-                {!isLocked ? (
-                  <select
-                    className="input py-0.5 h-7 text-sm w-auto min-w-32"
-                    value={card.reviewerId || ''}
-                    onChange={e => assignMutation.mutate({ reviewerId: e.target.value || null })}
-                  >
-                    <option value="">— не назначен —</option>
-                    {allUsers?.map((u: any) => (
-                      <option key={u.id} value={u.id}>{u.fullName}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-gray-700">{card.reviewer?.fullName || '—'}</span>
-                )}
+                      <option value="">— не назначен —</option>
+                      {allUsers?.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.fullName}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="meta-value">{card.executor?.fullName || '—'}</div>
+                  )}
+                </div>
+                <div className="meta-panel">
+                  <div className="meta-label">Проверяющий</div>
+                  {canManageAssignments ? (
+                    <select
+                      className="input h-9 text-sm"
+                      value={card.reviewerId || ''}
+                      onChange={e => assignMutation.mutate({ reviewerId: e.target.value || null })}
+                    >
+                      <option value="">— не назначен —</option>
+                      {allUsers?.map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.fullName}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="meta-value">{card.reviewer?.fullName || '—'}</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -424,18 +566,21 @@ export default function CardDetailPage() {
 
         {/* Hierarchy: parent + children */}
         {(card.parent || card.children?.length > 0 || !isLocked) && (
-          <div className="card mb-4">
-            <div className="card-header">
+          <div className="section-surface">
+            <div className="section-surface-header">
               <div className="flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-gray-500" />
-                <h2 className="font-semibold text-gray-700">
-                  Иерархия
-                  {card.children?.length > 0 && (
-                    <span className="text-gray-400 font-normal ml-1">({card.children.length})</span>
-                  )}
-                </h2>
+                <div>
+                  <h2 className="section-surface-title">
+                    Иерархия
+                    {card.children?.length > 0 && (
+                      <span className="text-gray-400 font-normal ml-1">({card.children.length})</span>
+                    )}
+                  </h2>
+                  <p className="section-surface-subtitle">Связи с родительской и дочерними карточками.</p>
+                </div>
               </div>
-              {!isLocked && (
+              {canEditWorkingCard && (
                 <Link
                   href={`/cards/new?parentId=${card.id}`}
                   className="btn-secondary text-sm"
@@ -484,7 +629,7 @@ export default function CardDetailPage() {
                 </div>
               )}
 
-              {!card.parent && card.children?.length === 0 && (
+              {!card.parent && card.children?.length === 0 && canEditWorkingCard && (
                 <p className="text-sm text-gray-400">Нет связанных карточек. Нажмите «Дочерняя карточка» чтобы создать.</p>
               )}
             </div>
@@ -492,20 +637,24 @@ export default function CardDetailPage() {
         )}
 
         {/* Source materials */}
-        <div className="card mb-4">
-          <div className="card-header">
+        {!(card.withoutSourceMaterials && card.sourceMaterials?.length === 0) && (
+        <div className="section-surface">
+          <div className="section-surface-header">
             <div className="flex items-center gap-2">
               <Paperclip className="w-4 h-4 text-gray-500" />
-              <h2 className="font-semibold text-gray-700">
-                Исходные материалы
-                {card.sourceMaterials?.length > 0 && (
-                  <span className="text-gray-400 font-normal ml-1">
-                    ({card.sourceMaterials.length})
-                  </span>
-                )}
-              </h2>
+              <div>
+                <h2 className="section-surface-title">
+                  Исходные материалы
+                  {card.sourceMaterials?.length > 0 && (
+                    <span className="text-gray-400 font-normal ml-1">
+                      ({card.sourceMaterials.length})
+                    </span>
+                  )}
+                </h2>
+                <p className="section-surface-subtitle">Файлы и ссылки, на которых основана работа по карточке.</p>
+              </div>
             </div>
-            {!isLocked && (
+            {canEditWorkingCard && (
               <button
                 className="btn-secondary text-sm"
                 onClick={() => setShowUploadMaterial(!showUploadMaterial)}
@@ -586,22 +735,26 @@ export default function CardDetailPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* Results with versioning */}
-        <div className="card mb-4">
-          <div className="card-header">
+        <div className="section-surface">
+          <div className="section-surface-header">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-gray-500" />
-              <h2 className="font-semibold text-gray-700">
-                Результаты
-                {card.resultVersions?.length > 0 && (
-                  <span className="text-gray-400 font-normal ml-1">
-                    (v{card.resultVersions.length})
-                  </span>
-                )}
-              </h2>
+              <div>
+                <h2 className="section-surface-title">
+                  Результаты
+                  {card.resultVersions?.length > 0 && (
+                    <span className="text-gray-400 font-normal ml-1">
+                      (v{card.resultVersions.length})
+                    </span>
+                  )}
+                </h2>
+                <p className="section-surface-subtitle">Версии итоговых файлов и внешних ссылок по карточке.</p>
+              </div>
             </div>
-            {!isLocked && (
+            {canEditWorkingCard && (
               <button
                 className="btn-secondary text-sm"
                 onClick={() => setShowUploadResult(!showUploadResult)}
@@ -613,116 +766,83 @@ export default function CardDetailPage() {
           </div>
 
           <div className="card-body">
+            {card.withoutResult && (
+              <div className="section-muted-banner mb-4">
+                <div>
+                  <div className="section-muted-title">Карточка помечена как «без результата»</div>
+                  <p className="section-muted-text">
+                    Результат при отправке на проверку здесь необязателен, но его всё равно можно загрузить, если он появится.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {card.resultVersions?.length === 0 ? (
               <p className="text-sm text-gray-400">Результаты ещё не загружены</p>
             ) : (
               <div className="space-y-4">
-                {card.resultVersions?.map((version: any) => (
-                  <div key={version.id} className={`border rounded-sm p-4 ${
-                    version.isCurrent ? 'border-green-200 bg-green-50/30' : 'border-gray-200 bg-gray-50/30'
-                  }`}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-700">
-                          Версия {version.versionNumber}
-                        </span>
-                        {version.isCurrent && (
-                          <span className="badge badge-done">Актуальная</span>
-                        )}
-                        <span className="text-xs text-gray-400">
-                          {version.createdBy?.fullName} · {formatRelative(version.createdAt)}
-                        </span>
-                      </div>
-                      {version.items?.some((i: any) => i.itemType === 'FILE') && (
-                        <a
-                          href={resultsApi.downloadVersionAllUrl(id, version.id)}
-                          className="btn-secondary text-xs px-3 py-1.5"
-                          download
-                        >
-                          <Download className="w-3 h-3" />
-                          Скачать ZIP
-                        </a>
-                      )}
-                    </div>
+                {currentVersion && renderResultVersion(currentVersion)}
 
-                    {version.comment && (
-                      <p className="text-sm text-gray-600 mb-3 italic">"{version.comment}"</p>
-                    )}
-
-                    <div className="space-y-1">
-                      {version.items?.map((item: any) => (
-                        <div key={item.id} className="flex items-start justify-between gap-2">
-                          <div className="flex items-start gap-2 text-sm text-gray-600 min-w-0 flex-1">
-                            {item.itemType === 'FILE' ? (
-                              <FileText className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
-                            ) : isLocalPath(item.externalUrl) ? (
-                              <span className="flex-shrink-0 mt-0.5">📁</span>
-                            ) : (
-                              <ExternalLink className="w-3 h-3 text-green-400 flex-shrink-0 mt-0.5" />
-                            )}
-                            <div className="min-w-0">
-                              <div className="truncate">{item.title}</div>
-                              {item.itemType === 'EXTERNAL_LINK' && (
-                                <div className="text-xs text-gray-400 font-mono truncate">{item.externalUrl}</div>
-                              )}
-                              {item.fileSize && (
-                                <span className="text-xs text-gray-400">
-                                  ({formatFileSize(Number(item.fileSize))})
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {item.itemType === 'FILE' ? (
-                            <a
-                              href={resultsApi.downloadItemUrl(id, version.id, item.id)}
-                              className="text-xs text-primary hover:underline flex-shrink-0"
-                              download
-                            >
-                              Скачать
-                            </a>
-                          ) : (
-                            <button
-                              className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
-                              title="Скопировать"
-                              onClick={() => copyUrl(item.id, item.externalUrl)}
-                            >
-                              {copiedUrlId === item.id
-                                ? <Check className="w-3 h-3 text-green-500" />
-                                : <Copy className="w-3 h-3" />
-                              }
-                            </button>
-                          )}
+                {previousVersions.length > 0 && (
+                  <div className="border border-slate-200 rounded-xl bg-slate-50/70 overflow-hidden">
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-100/70 transition-colors"
+                      onClick={() => setShowPreviousResults((value) => !value)}
+                    >
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">Предыдущие результаты</div>
+                        <div className="text-xs text-gray-500">
+                          Скрыто версий: {previousVersions.length}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                      {showPreviousResults ? (
+                        <ChevronUp className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                      )}
+                    </button>
+
+                    {showPreviousResults && (
+                      <div className="p-4 pt-0 space-y-3">
+                        {previousVersions.map((version: any) => renderResultVersion(version, true))}
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Comments — only for active (non-locked) cards, or if there are existing comments to show */}
-        {(!isLocked || card.comments?.length > 0) && (
-          <div className="card mb-4">
-            <div className="card-header">
+        {/* Comments */}
+        {showCommentsSection && (
+          <div className="section-surface">
+            <div className="section-surface-header">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-gray-500" />
-                <h2 className="font-semibold text-gray-700">
-                  Комментарии проверки
-                  {card.comments?.length > 0 && (
-                    <span className="text-gray-400 font-normal ml-1">({card.comments.length})</span>
-                  )}
-                </h2>
+                <div>
+                  <h2 className="section-surface-title">
+                    {card.withoutSourceMaterials ? 'Комментарии' : 'Комментарии проверки'}
+                    {card.comments?.length > 0 && (
+                      <span className="text-gray-400 font-normal ml-1">({card.comments.length})</span>
+                    )}
+                  </h2>
+                  <p className="section-surface-subtitle">
+                    {card.withoutSourceMaterials
+                      ? 'Обсуждение, пояснения и рабочие заметки по информационной карточке.'
+                      : 'Замечания и согласования по текущим версиям результата.'}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="card-body">
-              {/* New comment — only for active cards */}
-              {!isLocked && (
+              {/* New comment */}
+              {canAddComment && (
                 <div className="mb-4">
                   <textarea
                     className="input min-h-20 resize-none"
-                    placeholder="Добавить комментарий..."
+                    placeholder={card.withoutSourceMaterials ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                   />
@@ -731,7 +851,7 @@ export default function CardDetailPage() {
                     disabled={!newComment.trim() || commentMutation.isPending}
                     onClick={() => commentMutation.mutate(newComment)}
                   >
-                    Отправить комментарий
+                    {card.withoutSourceMaterials ? 'Добавить комментарий' : 'Отправить комментарий'}
                   </button>
                 </div>
               )}
@@ -1017,7 +1137,7 @@ export default function CardDetailPage() {
       {/* Status change dialog */}
       {showStatusDialog && pendingStatus && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowStatusDialog(false)} />
+          <div className="absolute inset-0 bg-black/40" onClick={closeStatusDialog} />
           <div className="relative bg-white rounded-sm shadow-xl w-full max-w-md mx-4 p-6">
             <h3 className="text-base font-semibold mb-4">
               {pendingStatus === 'CANCELLED' ? 'Отмена карточки' :
@@ -1027,14 +1147,25 @@ export default function CardDetailPage() {
             </h3>
 
             {pendingStatus === 'CANCELLED' && (
-              <div className="mb-4">
-                <label className="label label-required">Причина отмены</label>
-                <textarea
-                  className="input min-h-20"
-                  placeholder="Опишите причину отмены карточки..."
-                  value={statusReason}
-                  onChange={e => setStatusReason(e.target.value)}
-                />
+              <div className="mb-4 space-y-4">
+                <div>
+                  <label className="label label-required">Причина отмены</label>
+                  <textarea
+                    className="input min-h-20"
+                    placeholder="Опишите причину отмены карточки..."
+                    value={statusReason}
+                    onChange={e => setStatusReason(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">Комментарий</label>
+                  <textarea
+                    className="input min-h-20"
+                    placeholder="Дополнительный комментарий к отмене (необязательно)..."
+                    value={statusComment}
+                    onChange={e => setStatusComment(e.target.value)}
+                  />
+                </div>
               </div>
             )}
 
@@ -1059,10 +1190,22 @@ export default function CardDetailPage() {
               </div>
             )}
 
+            {!(pendingStatus === 'CANCELLED' || (pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW')) && (
+              <div className="mb-4">
+                <label className="label">Комментарий</label>
+                <textarea
+                  className="input min-h-20"
+                  placeholder="Комментарий к изменению статуса (необязательно)..."
+                  value={statusComment}
+                  onChange={e => setStatusComment(e.target.value)}
+                />
+              </div>
+            )}
+
             <div className="flex justify-end gap-3">
               <button
                 className="btn-secondary"
-                onClick={() => setShowStatusDialog(false)}
+                onClick={closeStatusDialog}
               >
                 Отмена
               </button>

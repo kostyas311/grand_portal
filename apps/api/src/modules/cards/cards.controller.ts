@@ -74,7 +74,7 @@ export class CardsController {
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateCardDto, @CurrentUser() user: any) {
-    return this.service.update(id, dto, user.id);
+    return this.service.update(id, dto, user.id, user.role as UserRole);
   }
 
   @Patch(':id/status')

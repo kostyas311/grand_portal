@@ -5,6 +5,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { UserRole } from '@prisma/client';
 import { SourceMaterialsService } from './source-materials.service';
 import { AddMaterialDto } from './dto/add-material.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,7 +35,7 @@ export class SourceMaterialsController {
     @CurrentUser() user: any,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.service.addMaterial(cardId, dto, user.id, file);
+    return this.service.addMaterial(cardId, dto, user.id, user.role as UserRole, file);
   }
 
   @Get('download-all')
@@ -57,6 +58,6 @@ export class SourceMaterialsController {
     @Param('materialId') materialId: string,
     @CurrentUser() user: any,
   ) {
-    return this.service.delete(cardId, materialId, user.id);
+    return this.service.delete(cardId, materialId, user.id, user.role as UserRole);
   }
 }

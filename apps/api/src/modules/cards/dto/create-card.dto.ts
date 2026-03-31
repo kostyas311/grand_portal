@@ -1,8 +1,10 @@
 import {
-  IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min, MaxLength, MinLength, ValidateIf,
+  IsBoolean, IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min, MaxLength, MinLength, ValidateIf,
 } from 'class-validator';
 import { CardPriority } from '@prisma/client';
 import { Type, Transform } from 'class-transformer';
+
+const toBool = ({ value }: { value: any }) => value === true || value === 'true';
 
 export class CreateCardDto {
   @IsOptional()
@@ -55,4 +57,14 @@ export class CreateCardDto {
   @IsOptional()
   @IsString()
   parentId?: string;
+
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  withoutResult?: boolean;
+
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  withoutSourceMaterials?: boolean;
 }

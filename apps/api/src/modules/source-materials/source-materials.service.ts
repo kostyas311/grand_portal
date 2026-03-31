@@ -4,12 +4,13 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { MaterialType } from '@prisma/client';
+import { CardStatus, MaterialType, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { AddMaterialDto } from './dto/add-material.dto';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SourceMaterialsService {
@@ -19,6 +20,7 @@ export class SourceMaterialsService {
     private prisma: PrismaService,
     private filesService: FilesService,
     private config: ConfigService,
+    private notifications: NotificationsService,
   ) {
     this.zipSizeLimit = config.get('ZIP_SIZE_LIMIT', 524288000);
   }
@@ -27,10 +29,12 @@ export class SourceMaterialsService {
     cardId: string,
     dto: AddMaterialDto,
     userId: string,
+    userRole: UserRole | undefined,
     file?: Express.Multer.File,
   ) {
     const card = await this.getCard(cardId);
     if (card.isLocked) throw new ForbiddenException('Карточка закрыта');
+    this.assertCanManageWorkingMaterials(card, userId, userRole);
     const resolvedCardId = card.id;
 
     if (dto.materialType === MaterialType.FILE) {
@@ -68,6 +72,14 @@ export class SourceMaterialsService {
         },
       });
 
+      await this.notifications.createForCardEvent(resolvedCardId, {
+        type: NotificationType.SOURCE_MATERIAL_ADDED,
+        title: 'Добавлены исходные данные',
+        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        actorId: userId,
+        excludeUserIds: [userId],
+      });
+
       return material;
     } else {
       if (!dto.externalUrl) throw new BadRequestException('URL не указан');
@@ -91,6 +103,14 @@ export class SourceMaterialsService {
           actionType: 'SOURCE_MATERIAL_ADDED',
           newValue: { title: material.title, type: 'EXTERNAL_LINK' },
         },
+      });
+
+      await this.notifications.createForCardEvent(resolvedCardId, {
+        type: NotificationType.SOURCE_MATERIAL_ADDED,
+        title: 'Добавлены исходные данные',
+        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        actorId: userId,
+        excludeUserIds: [userId],
       });
 
       return material;
@@ -149,7 +169,7 @@ export class SourceMaterialsService {
     (zipStream as any).pipe(res);
   }
 
-  async delete(cardId: string, materialId: string, userId: string) {
+  async delete(cardId: string, materialId: string, userId: string, userRole?: UserRole) {
     const material = await this.prisma.sourceMaterial.findFirst({
       where: { id: materialId, cardId },
     });
@@ -158,6 +178,7 @@ export class SourceMaterialsService {
 
     const card = await this.getCard(cardId);
     if (card.isLocked) throw new ForbiddenException('Карточка закрыта');
+    this.assertCanManageWorkingMaterials(card, userId, userRole);
 
     if (material.filePath) {
       this.filesService.deleteFile(material.filePath);
@@ -183,5 +204,17 @@ export class SourceMaterialsService {
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
+  }
+
+  private assertCanManageWorkingMaterials(card: any, userId: string, userRole?: UserRole) {
+    if (userRole === UserRole.ADMIN) {
+      return;
+    }
+
+    if (card.status !== CardStatus.IN_PROGRESS || card.executorId !== userId) {
+      throw new ForbiddenException(
+        'Изменять исходные материалы может только исполнитель, пока карточка находится в статусе "В работе"',
+      );
+    }
   }
 }

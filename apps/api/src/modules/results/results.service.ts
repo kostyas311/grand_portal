@@ -4,13 +4,13 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { MaterialType } from '@prisma/client';
+import { CardStatus, MaterialType, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
 import { CreateResultVersionDto } from './dto/create-result-version.dto';
-import { AddResultItemDto } from './dto/add-result-item.dto';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ResultsService {
@@ -20,6 +20,7 @@ export class ResultsService {
     private prisma: PrismaService,
     private filesService: FilesService,
     private config: ConfigService,
+    private notifications: NotificationsService,
   ) {
     this.zipSizeLimit = config.get('ZIP_SIZE_LIMIT', 524288000);
   }
@@ -41,10 +42,12 @@ export class ResultsService {
     cardId: string,
     dto: CreateResultVersionDto,
     userId: string,
+    userRole: UserRole | undefined,
     files?: Express.Multer.File[],
   ) {
     const card = await this.getCard(cardId);
     if (card.isLocked) throw new ForbiddenException('Карточка закрыта');
+    this.assertCanManageWorkingResult(card, userId, userRole);
     cardId = card.id; // use UUID
 
     // Mark all previous versions as not current
@@ -129,13 +132,23 @@ export class ResultsService {
       },
     });
 
-    return this.prisma.resultVersion.findUnique({
+    const createdVersion = await this.prisma.resultVersion.findUnique({
       where: { id: version.id },
       include: {
         createdBy: { select: { id: true, fullName: true } },
         items: true,
       },
     });
+
+    await this.notifications.createForCardEvent(cardId, {
+      type: NotificationType.RESULT_ADDED,
+      title: 'Загружен новый результат',
+      message: `По карточке «${card.extraTitle || card.publicId}» загружена версия результата №${versionNumber}.`,
+      actorId: userId,
+      excludeUserIds: [userId],
+    });
+
+    return createdVersion;
   }
 
   async downloadVersionAll(cardId: string, versionId: string, res: Response) {
@@ -185,9 +198,10 @@ export class ResultsService {
     stream.pipe(res);
   }
 
-  async deleteItem(cardId: string, versionId: string, itemId: string, userId: string) {
+  async deleteItem(cardId: string, versionId: string, itemId: string, userId: string, userRole?: UserRole) {
     const card = await this.getCard(cardId);
     if (card.isLocked) throw new ForbiddenException('Карточка закрыта');
+    this.assertCanManageWorkingResult(card, userId, userRole);
 
     const item = await this.prisma.resultItem.findFirst({
       where: { id: itemId, resultVersionId: versionId },
@@ -206,5 +220,17 @@ export class ResultsService {
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
+  }
+
+  private assertCanManageWorkingResult(card: any, userId: string, userRole?: UserRole) {
+    if (userRole === UserRole.ADMIN) {
+      return;
+    }
+
+    if (card.status !== CardStatus.IN_PROGRESS || card.executorId !== userId) {
+      throw new ForbiddenException(
+        'Загружать и изменять результаты может только исполнитель, пока карточка находится в статусе "В работе"',
+      );
+    }
   }
 }

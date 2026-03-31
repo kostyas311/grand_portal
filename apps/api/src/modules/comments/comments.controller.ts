@@ -2,6 +2,7 @@ import {
   Controller, Get, Post, Delete, Body, Param, UseGuards, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { UserRole } from '@prisma/client';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,7 +28,7 @@ export class CommentsController {
     @Body() dto: CreateCommentDto,
     @CurrentUser() user: any,
   ) {
-    return this.service.create(cardId, dto, user.id);
+    return this.service.create(cardId, dto, user.id, user.role as UserRole);
   }
 
   @Delete(':commentId')

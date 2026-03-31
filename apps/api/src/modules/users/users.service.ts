@@ -127,9 +127,9 @@ export class UsersService {
 
   async updateMyProfile(userId: string, dto: { fullName?: string; position?: string; phone?: string; password?: string }) {
     const updates: any = {};
-    if (dto.fullName !== undefined) updates.fullName = dto.fullName;
-    if (dto.position !== undefined) updates.position = dto.position || null;
-    if (dto.phone !== undefined) updates.phone = dto.phone || null;
+    if (dto.fullName !== undefined) updates.fullName = dto.fullName.trim();
+    if (dto.position !== undefined) updates.position = dto.position?.trim() || null;
+    if (dto.phone !== undefined) updates.phone = dto.phone?.trim() || null;
     if (dto.password) {
       if (dto.password.length < 6) throw new BadRequestException('Пароль должен быть не менее 6 символов');
       updates.passwordHash = await bcrypt.hash(dto.password, 12);

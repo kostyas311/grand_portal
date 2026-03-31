@@ -4,11 +4,13 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, LayoutList, LayoutGrid } from 'lucide-react';
+import { Plus, LayoutList, LayoutGrid, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CardStatusBadge } from '@/components/cards/CardStatusBadge';
 import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { KanbanBoard } from '@/components/cards/KanbanBoard';
+import { CardFiltersPanel } from '@/components/cards/CardFiltersPanel';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { cardsApi } from '@/lib/api';
 import { formatDate, getMonthName, getDueDateIndicator } from '@/lib/utils';
@@ -18,27 +20,13 @@ import { useAuthStore } from '@/lib/store/auth.store';
 type ViewMode = 'kanban' | 'list';
 type Tab = 'assigned' | 'created';
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'Все статусы' },
-  { value: 'NEW', label: 'Новое' },
-  { value: 'IN_PROGRESS', label: 'В работе' },
-  { value: 'REVIEW', label: 'На проверке' },
-  { value: 'DONE', label: 'Готово' },
-  { value: 'CANCELLED', label: 'Отменено' },
-];
-
-const PRIORITY_OPTIONS = [
-  { value: '', label: 'Все приоритеты' },
-  { value: 'OPTIONAL', label: 'Желательно' },
-  { value: 'NORMAL', label: 'В рабочем режиме' },
-  { value: 'URGENT', label: 'Срочно' },
-  { value: 'CRITICAL', label: 'Очень срочно' },
-];
-
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const router = useRouter();
   const currentDate = new Date();
+  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
+  const defaultMonth = String(currentDate.getMonth() + 1);
+  const defaultYear = String(currentDate.getFullYear());
 
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [tab, setTab] = useState<Tab>('assigned');
@@ -47,6 +35,10 @@ export default function DashboardPage() {
     search: '',
     status: '',
     priority: '',
+    month: String(currentDate.getMonth() + 1),
+    year: String(currentDate.getFullYear()),
+    sortBy: 'updatedAt',
+    sortOrder: 'desc' as 'asc' | 'desc',
     page: 1,
   });
 
@@ -54,13 +46,29 @@ export default function DashboardPage() {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
   };
 
+  const toggleSort = (sortBy: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      sortBy,
+      sortOrder: prev.sortBy === sortBy && prev.sortOrder === 'asc' ? 'desc' : 'asc',
+      page: 1,
+    }));
+  };
+
   // For kanban: карточки в зависимости от выбранного таба
   const kanbanQuery = useQuery({
-    queryKey: ['dashboard-kanban', tab, user?.id ?? ''],
+    queryKey: ['dashboard-kanban', tab, filters, user?.id ?? ''],
     queryFn: () =>
       cardsApi.getAll({
         assignedToMe: tab === 'assigned' ? true : undefined,
         createdByMe: tab === 'created' ? true : undefined,
+        status: filters.status || undefined,
+        priority: filters.priority || undefined,
+        search: filters.search || undefined,
+        month: filters.month ? Number(filters.month) : undefined,
+        year: filters.year ? Number(filters.year) : undefined,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
         limit: 200,
       }),
     enabled: viewMode === 'kanban',
@@ -76,6 +84,10 @@ export default function DashboardPage() {
         status: filters.status || undefined,
         priority: filters.priority || undefined,
         search: filters.search || undefined,
+        month: filters.month ? Number(filters.month) : undefined,
+        year: filters.year ? Number(filters.year) : undefined,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
         page: filters.page,
         limit: 20,
       }),
@@ -84,10 +96,40 @@ export default function DashboardPage() {
 
   const listData = listQuery.data;
 
+  const renderSortHeader = (label: string, sortBy: string) => {
+    const isActive = filters.sortBy === sortBy;
+    return (
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+        onClick={() => toggleSort(sortBy)}
+      >
+        <span>{label}</span>
+        {isActive ? (
+          filters.sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
+        )}
+      </button>
+    );
+  };
+
+  const resetFilters = () => {
+    setFilters((prev) => ({
+      ...prev,
+      search: '',
+      status: '',
+      priority: '',
+      month: defaultMonth,
+      year: defaultYear,
+      page: 1,
+    }));
+  };
+
   return (
     <AppLayout>
       {/* Header + табы — ограниченная ширина */}
-      <div className="page-container">
+      <div className="page-container-wide">
         <div className="page-header">
           <div>
             <h1 className="section-title">Мой кабинет</h1>
@@ -95,10 +137,13 @@ export default function DashboardPage() {
               Здравствуйте, {user?.fullName?.split(' ')[1] ?? user?.fullName}
             </p>
           </div>
-          <Link href="/cards/new" className="btn-primary">
-            <Plus className="w-4 h-4" />
-            Создать карточку
-          </Link>
+          <div className="flex items-center gap-3">
+            <NotificationBell />
+            <Link href="/cards/new" className="btn-primary">
+              <Plus className="w-4 h-4" />
+              Создать карточку
+            </Link>
+          </div>
         </div>
 
         {/* Tabs + View toggle */}
@@ -139,21 +184,31 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+
+        <CardFiltersPanel
+          filters={filters}
+          years={years}
+          defaultMonth={defaultMonth}
+          defaultYear={defaultYear}
+          searchPlaceholder="Поиск по моим карточкам..."
+          onChange={updateFilter}
+          onReset={resetFilters}
+        />
       </div>
 
       {/* Kanban view — полная ширина */}
       {viewMode === 'kanban' && (
-        <div className="px-6 pb-6">
+        <div className="page-container-wide pt-0">
           {kanbanQuery.isLoading ? (
-            <div className="flex gap-3">
+            <div className="flex gap-3 overflow-hidden">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex-1 min-w-[180px] h-64 skeleton rounded-lg" />
+                <div key={i} className="w-[300px] h-[420px] skeleton rounded-xl" />
               ))}
             </div>
           ) : (
             <KanbanBoard
               cards={kanbanQuery.data?.items || []}
-              queryKey={['dashboard-kanban', user?.id ?? '']}
+              queryKey={['dashboard-kanban', tab, filters, user?.id ?? '']}
             />
           )}
         </div>
@@ -161,44 +216,18 @@ export default function DashboardPage() {
 
       {/* List view */}
       {viewMode === 'list' && (
-        <div className="page-container">
-          {/* List filters */}
-          <div className="card mb-4">
-            <div className="card-body">
-              <div className="filter-bar">
-                <div className="relative flex-1 min-w-48">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Поиск по карточкам..."
-                    className="input pl-9"
-                    value={filters.search}
-                    onChange={(e) => updateFilter('search', e.target.value)}
-                  />
-                </div>
-                <select
-                  className="input w-auto"
-                  value={filters.status}
-                  onChange={(e) => updateFilter('status', e.target.value)}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-                <select
-                  className="input w-auto"
-                  value={filters.priority}
-                  onChange={(e) => updateFilter('priority', e.target.value)}
-                >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
+        <div className="page-container-wide">
+          <div className="list-surface">
+            <div className="list-surface-header">
+              <div>
+                <h2 className="list-surface-title">
+                  {tab === 'assigned' ? 'Карточки, назначенные на меня' : 'Карточки, созданные мной'}
+                </h2>
+                <p className="list-surface-subtitle">
+                  {listData?.total ?? 0} карточек в текущей выборке
+                </p>
               </div>
             </div>
-          </div>
-
-          <div className="card">
             {listQuery.isLoading ? (
               <div className="card-body">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -222,24 +251,25 @@ export default function DashboardPage() {
                 }
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-shell">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Источник / Название</th>
-                      <th>Период</th>
-                      <th>Статус</th>
-                      <th>Приоритет</th>
-                      <th>Срок</th>
-                      <th>Исполнитель</th>
-                      <th>Проверяющий</th>
-                      <th>Обновлено</th>
+                      <th>{renderSortHeader('ID', 'publicId')}</th>
+                      <th>{renderSortHeader('Источник / Название', 'dataSource')}</th>
+                      <th>{renderSortHeader('Период', 'year')}</th>
+                      <th>{renderSortHeader('Статус', 'status')}</th>
+                      <th>{renderSortHeader('Приоритет', 'priority')}</th>
+                      <th>{renderSortHeader('Срок', 'dueDate')}</th>
+                      <th>{renderSortHeader('Исполнитель', 'executor')}</th>
+                      <th>{renderSortHeader('Проверяющий', 'reviewer')}</th>
+                      <th>{renderSortHeader('Обновлено', 'updatedAt')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {listData.items.map((card: any) => {
                       const indicator = getDueDateIndicator(card.dueDate, card.status);
+                      const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
                       const rowBorder =
                         indicator === 'red' ? 'border-l-4 border-l-red-400' :
                         indicator === 'orange' ? 'border-l-4 border-l-orange-400' :
@@ -255,7 +285,15 @@ export default function DashboardPage() {
                           </td>
                           <td>
                             <div>
-                              <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                                {hasNoSourceMaterials && (
+                                  <span className="attention-chip">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    Информационная
+                                  </span>
+                                )}
+                              </div>
                               {card.extraTitle && (
                                 <div className="text-xs text-gray-400">{card.extraTitle}</div>
                               )}

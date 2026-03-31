@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NormBase Portal — презентация для внедрения</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: rgba(255, 255, 255, 0.9);
+      --surface-strong: #ffffff;
+      --line: rgba(23, 43, 77, 0.12);
+      --text: #15304f;
+      --muted: #607289;
+      --blue: #2f6de1;
+      --blue-soft: #eaf2ff;
+      --teal: #1d9e9b;
+      --teal-soft: #e8fbfa;
+      --gold: #f6b938;
+      --gold-soft: #fff7df;
+      --green: #2f9d61;
+      --green-soft: #eaf9f0;
+      --red: #df5f54;
+      --shadow: 0 24px 60px rgba(16, 43, 77, 0.12);
+      --radius-xl: 32px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Inter", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(47, 109, 225, 0.12), transparent 34%),
+        radial-gradient(circle at top right, rgba(29, 158, 155, 0.12), transparent 26%),
+        linear-gradient(180deg, #f9fbff 0%, var(--bg) 100%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .page-shell {
+      width: min(1440px, calc(100vw - 48px));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 16px 22px;
+      margin-bottom: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 48px rgba(16, 43, 77, 0.1);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 20px;
+      background: #fff;
+      box-shadow: 0 16px 32px rgba(47, 109, 225, 0.16);
+      border: 1px solid rgba(23, 43, 77, 0.08);
+      overflow: hidden;
+    }
+
+    .brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .nav a {
+      padding: 10px 16px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      transition: 0.2s ease;
+    }
+
+    .nav a:hover {
+      color: var(--text);
+      background: rgba(47, 109, 225, 0.08);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 28px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+
+    .hero-copy,
+    .hero-visual,
+    .slide,
+    .summary-band {
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: var(--radius-xl);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .hero-copy {
+      padding: 40px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      color: var(--blue);
+      background: var(--blue-soft);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 22px 0 18px;
+      font-size: clamp(42px, 5vw, 68px);
+      line-height: 0.98;
+      letter-spacing: -0.04em;
+      max-width: 10.8ch;
+    }
+
+    .hero-lead {
+      margin: 0;
+      max-width: 60ch;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.7;
+    }
+
+    .chip-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .hero-chip {
+      padding: 18px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .hero-chip strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 15px;
+    }
+
+    .hero-chip span {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .hero-visual {
+      padding: 28px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .hero-visual::after {
+      content: "";
+      position: absolute;
+      inset: auto -90px -110px auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(29, 158, 155, 0.16), transparent 68%);
+      pointer-events: none;
+    }
+
+    .visual-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .visual-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .visual-badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: var(--teal);
+      background: var(--teal-soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .metric-card strong {
+      display: block;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .metric-card span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .column {
+      padding: 14px;
+      border-radius: 20px;
+      background: rgba(245, 248, 252, 0.92);
+      border: 1px solid rgba(23, 43, 77, 0.08);
+      min-height: 286px;
+    }
+
+    .column-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .count {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 12px;
+      color: var(--text);
+      background: rgba(21, 48, 79, 0.08);
+    }
+
+    .task-card {
+      padding: 14px;
+      margin-bottom: 10px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid rgba(23, 43, 77, 0.1);
+      box-shadow: 0 8px 22px rgba(16, 43, 77, 0.08);
+    }
+
+    .task-id {
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .task-title {
+      margin: 8px 0 10px;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pill.blue { background: var(--blue-soft); color: var(--blue); }
+    .pill.gold { background: var(--gold-soft); color: #a56b00; }
+    .pill.green { background: var(--green-soft); color: var(--green); }
+    .pill.teal { background: var(--teal-soft); color: var(--teal); }
+
+    .slide {
+      padding: 34px;
+      margin-bottom: 24px;
+    }
+
+    .section-tag {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: var(--teal);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: clamp(30px, 3.6vw, 48px);
+      line-height: 1.06;
+      letter-spacing: -0.03em;
+    }
+
+    .section-lead {
+      margin: 0 0 24px;
+      max-width: 74ch;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.72;
+    }
+
+    .grid-3,
+    .grid-2,
+    .grid-4 {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .value-card,
+    .feature-card,
+    .process-card,
+    .note-card,
+    .summary-tile {
+      padding: 22px;
+      border-radius: 22px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 32px rgba(16, 43, 77, 0.06);
+    }
+
+    .value-card strong,
+    .feature-card strong,
+    .process-card strong,
+    .note-card strong,
+    .summary-tile strong {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .value-card p,
+    .feature-card p,
+    .process-card p,
+    .note-card p,
+    .summary-tile p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .accent-blue { background: linear-gradient(180deg, #ffffff 0%, #f3f8ff 100%); }
+    .accent-teal { background: linear-gradient(180deg, #ffffff 0%, #f2fdfc 100%); }
+    .accent-gold { background: linear-gradient(180deg, #ffffff 0%, #fffaf0 100%); }
+
+    ul.clean {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    ul.clean li {
+      position: relative;
+      padding-left: 20px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    ul.clean li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 11px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+    }
+
+    .summary-band {
+      padding: 28px;
+      margin-top: 12px;
+    }
+
+    .summary-band .grid-4 {
+      gap: 14px;
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap: 18px;
+    }
+
+    .media-card {
+      padding: 22px;
+      border-radius: 24px;
+      background: #fff;
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 32px rgba(16, 43, 77, 0.06);
+    }
+
+    .media-kicker {
+      margin-bottom: 10px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .logo-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      padding: 30px;
+      text-align: center;
+      background: linear-gradient(180deg, #f9fbff 0%, #eef5ff 100%);
+    }
+
+    .logo-panel img {
+      width: 132px;
+      height: 132px;
+      object-fit: contain;
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: 0 20px 36px rgba(47, 109, 225, 0.16);
+      padding: 14px;
+      border: 1px solid rgba(23, 43, 77, 0.08);
+    }
+
+    .logo-panel strong {
+      display: block;
+      margin-top: 20px;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .logo-panel h3 {
+      margin: 12px 0 10px;
+      font-size: clamp(28px, 3vw, 40px);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+
+    .logo-panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.65;
+      max-width: 34ch;
+    }
+
+    .shot-frame {
+      overflow: hidden;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: #eaf0f6;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+
+    .shot-image {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .shot-caption {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .grid-2,
+      .grid-3,
+      .media-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .grid-4,
+      .chip-row,
+      .board,
+      .metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page-shell {
+        width: min(100vw - 20px, 1440px);
+        padding-top: 12px;
+      }
+
+      .topbar {
+        position: static;
+        border-radius: 28px;
+        padding: 16px;
+      }
+
+      .nav,
+      .grid-4,
+      .chip-row,
+      .board,
+      .metric-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-copy,
+      .hero-visual,
+      .slide,
+      .summary-band {
+        padding: 22px;
+      }
+
+      h1 {
+        max-width: none;
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .page-shell {
+        width: 100%;
+      }
+
+      .topbar {
+        position: static;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">
+          <img src="../../apps/web/public/logo.png" alt="Логотип Нормбаза" />
+        </div>
+        <div class="brand-copy">
+          <strong>Нормбаза</strong>
+          <span>Управление сметно-нормативной документацией · Документооборот</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#value">Ценность</a>
+        <a href="#interface">Интерфейс</a>
+        <a href="#features">Возможности</a>
+        <a href="#process">Сценарий работы</a>
+        <a href="#adoption">Внедрение</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Единая среда управления задачами и проверкой</div>
+        <h1>Прозрачный документооборот без потери контекста и ручного контроля.</h1>
+        <p class="hero-lead">
+          NormBase Portal помогает выстроить понятный управленческий контур вокруг карточек,
+          ответственных, этапов проверки, результатов и рабочих комментариев. Вместо переписок,
+          разрозненных файлов и устных договорённостей компания получает единую среду, где видно,
+          что происходит, кто отвечает и где находится итоговый результат.
+        </p>
+        <div class="chip-row">
+          <div class="hero-chip">
+            <strong>Для руководства</strong>
+            <span>Появляется прозрачность по загрузке команды, срокам, статусам и очередям.</span>
+          </div>
+          <div class="hero-chip">
+            <strong>Для команды</strong>
+            <span>Исчезает хаос из чатов, почты и устных согласований, всё собрано в одном месте.</span>
+          </div>
+          <div class="hero-chip">
+            <strong>Для компании</strong>
+            <span>Формируется повторяемый процесс, который можно масштабировать на другие подразделения.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visual">
+        <div class="visual-topline">
+          <div class="visual-title">Как выглядит управляемый процесс</div>
+          <div class="visual-badge">Меньше ручного контроля</div>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric-card">
+            <strong>126</strong>
+            <span>карточек в работе</span>
+          </div>
+          <div class="metric-card">
+            <strong>18</strong>
+            <span>задач на проверке</span>
+          </div>
+          <div class="metric-card">
+            <strong>96%</strong>
+            <span>действий с понятным статусом</span>
+          </div>
+        </div>
+
+        <div class="board">
+          <div class="column">
+            <div class="column-head">Новое <span class="count">4</span></div>
+            <div class="task-card">
+              <div class="task-id">NB-2026-0012</div>
+              <div class="task-title">Поступил новый комплект материалов по проекту</div>
+              <div class="task-meta">
+                <span class="pill blue">Источник</span>
+                <span class="pill gold">Нужно назначить</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="column">
+            <div class="column-head">В работе <span class="count">7</span></div>
+            <div class="task-card">
+              <div class="task-id">NB-2026-0017</div>
+              <div class="task-title">Подготовка рабочей версии файлов для обработки</div>
+              <div class="task-meta">
+                <span class="pill blue">Исполнитель</span>
+                <span class="pill teal">Срок на этой неделе</span>
+              </div>
+            </div>
+            <div class="task-card">
+              <div class="task-id">NB-2026-0019</div>
+              <div class="task-title">Актуализация сопроводительных данных по карточке</div>
+              <div class="task-meta">
+                <span class="pill gold">Приоритет</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="column">
+            <div class="column-head">На проверке <span class="count">3</span></div>
+            <div class="task-card">
+              <div class="task-id">NB-2026-0024</div>
+              <div class="task-title">Результат готов и ожидает подтверждения проверяющим</div>
+              <div class="task-meta">
+                <span class="pill teal">Проверяющий</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="column">
+            <div class="column-head">Готово <span class="count">9</span></div>
+            <div class="task-card">
+              <div class="task-id">NB-2026-0007</div>
+              <div class="task-title">Финальный результат сохранён и доступен команде</div>
+              <div class="task-meta">
+                <span class="pill green">Готовый проект</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="interface">
+      <div class="section-tag">Реальный интерфейс</div>
+      <h2>Презентация опирается на живой продукт, а не только на абстрактные схемы.</h2>
+      <p class="section-lead">
+        Ниже встроены реальные элементы текущего решения: фирменный логотип, название продукта и фактический экран входа.
+        Это помогает показывать руководству не просто идею, а уже оформленную рабочую систему с узнаваемым визуальным образом.
+      </p>
+
+      <div class="media-grid">
+        <article class="media-card logo-panel">
+          <img src="../../apps/web/public/logo.png" alt="Логотип продукта" />
+          <strong>Фирменный блок</strong>
+          <h3>Управление сметно-нормативной документацией</h3>
+          <p>
+            Документооборот для внутренних процессов компании. Логотип и нейминг уже встроены в продуктовый интерфейс,
+            поэтому система воспринимается как оформленное корпоративное решение.
+          </p>
+        </article>
+
+        <article class="media-card">
+          <div class="media-kicker">Реальный экран</div>
+          <div class="shot-frame">
+            <img class="shot-image" src="screens/login.png" alt="Реальный экран входа в систему" />
+          </div>
+          <p class="shot-caption">
+            Экран входа выполнен в спокойном корпоративном стиле: пользователю сразу понятно назначение системы,
+            а визуальная подача выглядит аккуратно и современно. Для руководства это важный сигнал зрелости решения.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="slide" id="value">
+      <div class="section-tag">Что получает компания</div>
+      <h2>Продукт переводит процесс из режима ручного контроля в управляемую систему.</h2>
+      <p class="section-lead">
+        Для бизнеса это не просто “ещё один портал”, а практичный инструмент, который делает работу с карточками,
+        проверкой, исходными материалами и результатами прозрачной, воспроизводимой и менее зависимой от отдельных людей.
+      </p>
+
+      <div class="grid-3">
+        <article class="value-card accent-blue">
+          <strong>Прозрачность статусов</strong>
+          <p>Руководитель в любой момент видит, что только поступило, что уже взято в работу, что ожидает проверки и что завершено.</p>
+        </article>
+        <article class="value-card accent-teal">
+          <strong>Персональная ответственность</strong>
+          <p>Каждая карточка закреплена за конкретными участниками процесса, поэтому исчезает неопределённость “кто этим занимается”.</p>
+        </article>
+        <article class="value-card accent-gold">
+          <strong>Единая точка входа</strong>
+          <p>Карточка, ссылки, материалы, комментарии, история и результат находятся в одном месте, а не разбросаны по разным каналам.</p>
+        </article>
+        <article class="value-card">
+          <strong>Контроль сроков и очередей</strong>
+          <p>Становится проще видеть просрочки, нагрузку команды и задачи, которые требуют управленческого внимания.</p>
+        </article>
+        <article class="value-card">
+          <strong>Сохранность результата</strong>
+          <p>Готовые результаты не теряются и не остаются только в личных папках сотрудников, а становятся доступными для дальнейшей работы.</p>
+        </article>
+        <article class="value-card">
+          <strong>Снижение операционного шума</strong>
+          <p>Меньше переписок, уточнений и ручных напоминаний, потому что система сама показывает следующий шаг и участников процесса.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="slide" id="features">
+      <div class="section-tag">Возможности</div>
+      <h2>Не просто список задач, а единый рабочий контур для компании.</h2>
+      <p class="section-lead">
+        Решение помогает выстроить управляемый ритм работы вокруг карточек: от постановки задачи и загрузки материалов
+        до проверки, уведомлений, отчётности и финального хранения результата.
+      </p>
+
+      <div class="grid-2">
+        <div class="feature-card accent-blue">
+          <strong>Ключевые возможности</strong>
+          <ul class="clean">
+            <li>Понятный жизненный цикл карточки: новая, в работе, на проверке, выполнена или отменена.</li>
+            <li>Разделение ролей: создатель, исполнитель, проверяющий, администратор.</li>
+            <li>Удобное отображение в виде списка и канбан-доски для разных сценариев управления.</li>
+            <li>Комментарии, история действий и накопление контекста прямо внутри карточки.</li>
+            <li>Подписка на карточки и центр уведомлений без лишнего спама.</li>
+            <li>Отдельные обращения к администратору для нестандартных задач и запросов.</li>
+            <li>Отчёты по статусам, срокам и объёму работы за период.</li>
+          </ul>
+        </div>
+
+        <div class="feature-card accent-teal">
+          <strong>Как это воспринимает пользователь</strong>
+          <div class="grid-2" style="margin-top: 16px;">
+            <div class="summary-tile">
+              <strong>Мой кабинет</strong>
+              <p>Показывает только то, что действительно требует внимания сотрудника прямо сейчас.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Все карточки</strong>
+              <p>Даёт руководителю или координатору общую картину по потоку задач и их состоянию.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Уведомления</strong>
+              <p>Собирают события в понятную ленту, чтобы не терялись изменения по нужным карточкам.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Готовые проекты</strong>
+              <p>Позволяют быстро находить уже подготовленные результаты и использовать их повторно.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Обращения</strong>
+              <p>Упорядочивают запросы к администратору и снимают хаос с точечными просьбами.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Отчёты</strong>
+              <p>Помогают быстро увидеть, где есть узкие места, задержки или перегрузка.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="summary-band">
+        <div class="grid-4">
+          <div class="summary-tile">
+            <strong>Управленческий эффект</strong>
+            <p>Руководство получает обзор процесса, а не набор разрозненных сигналов из разных каналов.</p>
+          </div>
+          <div class="summary-tile">
+            <strong>Операционная дисциплина</strong>
+            <p>Сотрудники работают в понятной логике переходов и знают, что нужно сделать дальше.</p>
+          </div>
+          <div class="summary-tile">
+            <strong>Масштабируемость</strong>
+            <p>Подход можно расширять на новые команды, процессы и категории задач без смены логики.</p>
+          </div>
+          <div class="summary-tile">
+            <strong>Снижение рисков</strong>
+            <p>Контекст и материалы меньше зависят от личных переписок и памяти конкретного сотрудника.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="process">
+      <div class="section-tag">Сценарий работы</div>
+      <h2>Как выглядит рабочий путь карточки от поступления задачи до готового результата.</h2>
+      <p class="section-lead">
+        Важная ценность решения в том, что весь процесс становится читаемым и одинаково понятным для руководителя,
+        исполнителя и проверяющего. Это снимает большую часть организационных вопросов ещё до того, как они возникнут.
+      </p>
+
+      <div class="grid-4">
+        <article class="process-card accent-blue">
+          <strong>1. Постановка задачи</strong>
+          <p>Создаётся карточка, фиксируется суть задачи, при необходимости прикладываются материалы и назначаются участники процесса.</p>
+        </article>
+        <article class="process-card accent-teal">
+          <strong>2. Работа исполнителя</strong>
+          <p>Исполнитель видит карточку у себя в кабинете, ведёт работу, загружает результат и накапливает рабочий контекст.</p>
+        </article>
+        <article class="process-card accent-gold">
+          <strong>3. Проверка</strong>
+          <p>Проверяющий получает уведомление, просматривает результат, подтверждает готовность или возвращает карточку в работу с комментарием.</p>
+        </article>
+        <article class="process-card">
+          <strong>4. Финал</strong>
+          <p>После подтверждения результат становится частью общей базы знаний и доступен для дальнейшего использования командой.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="section-tag">Дополнительная ценность</div>
+      <h2>Особенно полезные функции для управленческого и операционного контура.</h2>
+      <p class="section-lead">
+        Помимо базовой логики карточек, система закрывает целый ряд практических задач, которые обычно живут в письмах,
+        мессенджерах и “ручных” договорённостях. Именно это делает внедрение ощутимым для бизнеса уже в первые недели работы.
+      </p>
+
+      <div class="grid-2">
+        <div class="note-card accent-gold">
+          <strong>Что особенно ценно в ежедневной работе</strong>
+          <ul class="clean">
+            <li>Центр уведомлений позволяет не терять важные изменения по карточкам, на которые подписан пользователь.</li>
+            <li>Создатель карточки автоматически остаётся в контуре происходящего и не выпадает из процесса.</li>
+            <li>Проверяющий получает отдельный сигнал, когда карточка действительно готова к проверке.</li>
+            <li>Информационные карточки позволяют вести задачи, для которых не нужны исходные материалы или финальный результат.</li>
+            <li>Обращения к администратору превращают точечные просьбы пользователей в формализованный понятный поток.</li>
+            <li>История изменений и комментарии помогают быстро восстановить контекст и снизить зависимость от устных пояснений.</li>
+          </ul>
+        </div>
+
+        <div class="note-card accent-blue">
+          <strong>Лента внимания руководителя</strong>
+          <div class="grid-2" style="margin-top: 16px;">
+            <div class="summary-tile">
+              <strong>Новая проверка</strong>
+              <p>Система показывает, что по карточке требуется решение проверяющего, а не просто очередной просмотр.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Комментарий по задаче</strong>
+              <p>Замечания и уточнения не теряются, а остаются внутри карточки как часть рабочей истории.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Обращение к администратору</strong>
+              <p>Запросы на помощь, изменение или администрирование становятся видимыми и отслеживаемыми.</p>
+            </div>
+            <div class="summary-tile">
+              <strong>Уведомления без перегруза</strong>
+              <p>События могут собираться в более спокойную ленту, чтобы информировать без эффекта спам-рассылки.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" id="adoption">
+      <div class="section-tag">Внедрение</div>
+      <h2>Практичный сценарий внедрения, который можно показать руководству без лишней сложности.</h2>
+      <p class="section-lead">
+        Лучший путь внедрения такого решения — не “большой запуск сразу на всё”, а аккуратный пилот на одном процессе или подразделении,
+        после которого система масштабируется на другие направления уже с понятными правилами и ожидаемым эффектом.
+      </p>
+
+      <div class="grid-2">
+        <div class="note-card accent-teal">
+          <strong>Рекомендуемый пилот</strong>
+          <ul class="clean">
+            <li>Выбрать одно подразделение или один тип задач, где особенно важны сроки, проверка и сохранность результата.</li>
+            <li>Согласовать роль участников: кто создаёт карточки, кто исполняет, кто проверяет, кто администрирует.</li>
+            <li>Запустить ограниченный набор сценариев и дать команде понятные правила работы внутри системы.</li>
+            <li>Через короткий период оценить эффект: прозрачность, скорость согласования, удобство контроля и качество хранения результата.</li>
+          </ul>
+        </div>
+
+        <div class="grid-2">
+          <div class="note-card">
+            <strong>Что важно со стороны руководства</strong>
+            <p>Поддержать единые правила работы и закрепить, что карточка становится основным рабочим объектом, а не “дополнительной формальностью”.</p>
+          </div>
+          <div class="note-card">
+            <strong>Что важно для команды</strong>
+            <p>Дать понятный сценарий использования и показать, что система упрощает работу, а не добавляет лишнюю бюрократию.</p>
+          </div>
+          <div class="note-card">
+            <strong>Что получает бизнес</strong>
+            <p>Управляемость, прозрачность, меньше потерь информации и более понятную точку контроля по срокам и ответственности.</p>
+          </div>
+          <div class="note-card">
+            <strong>Нюансы внедрения</strong>
+            <p>Важно договориться о смысле статусов, правилах проверки, сроках реакции на обращения и общей дисциплине ведения карточек.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide">
+      <div class="section-tag">Итог</div>
+      <h2>Почему это решение стоит рассматривать к внедрению уже сейчас.</h2>
+      <p class="section-lead">
+        Система закрывает понятную бизнес-боль: как организовать поток задач, проверку и результат так,
+        чтобы компания меньше зависела от ручных договорённостей и при этом не усложняла повседневную работу сотрудников.
+      </p>
+
+      <div class="grid-2">
+        <div class="feature-card accent-blue">
+          <strong>Ключевые аргументы для руководства</strong>
+          <ul class="clean">
+            <li>Руководитель получает прозрачную картину по статусам и загрузке команды.</li>
+            <li>Задачи и результаты перестают жить только в чатах, письмах и локальных папках.</li>
+            <li>Проверка и ответственность становятся встроенной частью процесса, а не ручным контролем.</li>
+            <li>Готовые результаты сохраняются и могут использоваться повторно внутри компании.</li>
+            <li>Внедрение можно делать поэтапно, без тяжёлой организационной перестройки с первого дня.</li>
+          </ul>
+        </div>
+
+        <div class="feature-card accent-gold">
+          <strong>Рекомендуемый следующий шаг</strong>
+          <p style="margin-bottom: 14px;">
+            Показать решение на примере одного реального процесса, где есть поток задач, исполнитель,
+            проверяющий и ценность от сохранённого результата. Это позволит руководству увидеть не “систему как таковую”,
+            а конкретный управленческий эффект от её использования.
+          </p>
+          <svg viewBox="0 0 540 260" width="100%" role="img" aria-label="Схема ценности внедрения">
+            <defs>
+              <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#2f6de1" />
+                <stop offset="100%" stop-color="#1d9e9b" />
+              </linearGradient>
+            </defs>
+            <rect x="18" y="22" width="150" height="76" rx="22" fill="#ffffff" stroke="rgba(21,48,79,0.12)" />
+            <rect x="194" y="22" width="150" height="76" rx="22" fill="#ffffff" stroke="rgba(21,48,79,0.12)" />
+            <rect x="370" y="22" width="150" height="76" rx="22" fill="#ffffff" stroke="rgba(21,48,79,0.12)" />
+            <rect x="106" y="154" width="328" height="84" rx="28" fill="url(#g1)" opacity="0.96" />
+            <path d="M168 60h26 M344 60h26 M270 98v40" stroke="#8ca1bb" stroke-width="6" stroke-linecap="round" />
+            <text x="32" y="48" fill="#2f6de1" font-size="13" font-weight="700">Пилот</text>
+            <text x="32" y="72" fill="#15304f" font-size="20" font-weight="700">Один процесс</text>
+            <text x="208" y="48" fill="#1d9e9b" font-size="13" font-weight="700">Дисциплина</text>
+            <text x="208" y="72" fill="#15304f" font-size="20" font-weight="700">Единые правила</text>
+            <text x="384" y="48" fill="#c28c11" font-size="13" font-weight="700">Контроль</text>
+            <text x="384" y="72" fill="#15304f" font-size="20" font-weight="700">Прозрачность</text>
+            <text x="136" y="190" fill="#ffffff" font-size="16" font-weight="700">Ожидаемый эффект для компании</text>
+            <text x="136" y="218" fill="#ffffff" font-size="26" font-weight="800">Управляемый, понятный и масштабируемый процесс</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="footer-note">
+        Материал подготовлен как управленческая презентация продукта для внутреннего рассмотрения и принятия решения о внедрении.
+      </div>
+    </section>
+  </div>
+</body>
+</html>

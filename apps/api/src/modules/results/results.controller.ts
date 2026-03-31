@@ -5,6 +5,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
+import { UserRole } from '@prisma/client';
 import { ResultsService } from './results.service';
 import { CreateResultVersionDto } from './dto/create-result-version.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -35,7 +36,7 @@ export class ResultsController {
     @CurrentUser() user: any,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.service.createVersion(cardId, dto, user.id, files);
+    return this.service.createVersion(cardId, dto, user.id, user.role as UserRole, files);
   }
 
   @Get(':versionId/download-all')
@@ -65,6 +66,6 @@ export class ResultsController {
     @Param('itemId') itemId: string,
     @CurrentUser() user: any,
   ) {
-    return this.service.deleteItem(cardId, versionId, itemId, user.id);
+    return this.service.deleteItem(cardId, versionId, itemId, user.id, user.role as UserRole);
   }
 }
