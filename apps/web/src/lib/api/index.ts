@@ -4,6 +4,7 @@ export { cardsApi } from './cards';
 export { notificationsApi } from './notifications';
 export { adminRequestsApi } from './adminRequests';
 export { notificationEmailSettingsApi } from './notificationEmailSettings';
+export { bitrix24NotificationSettingsApi } from './bitrix24NotificationSettings';
 
 import { apiClient } from './client';
 

@@ -11,6 +11,7 @@ import SMTPTransport from 'nodemailer/lib/smtp-transport';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsFilterDto } from './dto/notifications-filter.dto';
 import { NotificationEmailSettingsService } from '../notification-email-settings/notification-email-settings.service';
+import { Bitrix24NotificationSettingsService } from '../bitrix24-notification-settings/bitrix24-notification-settings.service';
 
 type CreateCardNotificationParams = {
   type: NotificationType;
@@ -42,6 +43,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private prisma: PrismaService,
     private notificationEmailSettingsService: NotificationEmailSettingsService,
+    private bitrix24NotificationSettingsService: Bitrix24NotificationSettingsService,
   ) {}
 
   onModuleInit() {
@@ -343,6 +345,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       ]);
 
       await this.sendEmailNotifications(pendingItems);
+      await this.sendBitrix24Notifications(pendingItems);
     } catch (error: any) {
       this.logger.error(
         'Не удалось отправить накопленные уведомления',
@@ -730,6 +733,211 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  private async sendBitrix24Notifications(
+    notifications: Array<{
+      userId: string;
+      cardId: string | null;
+      adminRequestId: string | null;
+      actorId: string | null;
+      type: NotificationType;
+      title: string;
+      message: string;
+      createdAt: Date;
+    }>,
+  ) {
+    const settings = await this.bitrix24NotificationSettingsService.getDeliverySettings();
+
+    if (!settings) {
+      return;
+    }
+
+    const cardNotifications = notifications.filter((item) => Boolean(item.cardId));
+    if (cardNotifications.length === 0) {
+      return;
+    }
+
+    const userIds = Array.from(new Set(cardNotifications.map((item) => item.userId)));
+    const cardIds = Array.from(
+      new Set(
+        cardNotifications
+          .map((item) => item.cardId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const actorIds = Array.from(
+      new Set(
+        cardNotifications
+          .map((item) => item.actorId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const [users, cards, actors] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          id: { in: userIds },
+          isActive: true,
+          bitrix24UserId: { not: null },
+        },
+        select: {
+          id: true,
+          fullName: true,
+          bitrix24UserId: true,
+        },
+      }),
+      this.prisma.card.findMany({
+        where: {
+          id: { in: cardIds },
+        },
+        select: {
+          id: true,
+          publicId: true,
+          createdById: true,
+          reviewerId: true,
+          extraTitle: true,
+          dataSource: { select: { name: true } },
+          watchers: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+      }),
+      actorIds.length
+        ? this.prisma.user.findMany({
+            where: {
+              id: { in: actorIds },
+            },
+            select: {
+              id: true,
+              fullName: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    if (users.length === 0) {
+      return;
+    }
+
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    const cardsById = new Map(cards.map((card) => [card.id, card]));
+    const actorsById = new Map(actors.map((actor) => [actor.id, actor]));
+    const grouped = new Map<
+      string,
+      Array<{
+        title: string;
+        message: string;
+        actorName?: string;
+        targetLabel: string;
+        targetUrl: string;
+        createdAt: Date;
+      }>
+    >();
+
+    for (const notification of cardNotifications) {
+      const recipient = usersById.get(notification.userId);
+      const card = notification.cardId ? cardsById.get(notification.cardId) : null;
+
+      if (!recipient || !recipient.bitrix24UserId || !card) {
+        continue;
+      }
+
+      const isWatcher = card.watchers.some((watcher) => watcher.userId === notification.userId);
+      const isCreator = card.createdById === notification.userId;
+      const isReviewerForReview =
+        notification.type === NotificationType.REVIEW_REQUEST &&
+        card.reviewerId === notification.userId;
+
+      if (!isWatcher && !isCreator && !isReviewerForReview) {
+        continue;
+      }
+
+      const targetLabel = card.dataSource?.name
+        ? card.extraTitle
+          ? `${card.dataSource.name} — ${card.extraTitle}`
+          : card.dataSource.name
+        : card.publicId;
+
+      const existing = grouped.get(notification.userId) || [];
+      existing.push({
+        title: notification.title,
+        message: notification.message,
+        actorName: notification.actorId ? actorsById.get(notification.actorId)?.fullName : undefined,
+        targetLabel,
+        targetUrl: `${this.portalBaseUrl}/cards/${card.publicId}`,
+        createdAt: notification.createdAt,
+      });
+      grouped.set(notification.userId, existing);
+    }
+
+    for (const [userId, items] of grouped.entries()) {
+      const recipient = usersById.get(userId);
+      if (!recipient?.bitrix24UserId || items.length === 0) {
+        continue;
+      }
+
+      const sortedItems = [...items].sort(
+        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+
+      try {
+        await this.bitrix24NotificationSettingsService.sendCardNotification({
+          webhookUrl: settings.webhookUrl!,
+          bitrix24UserId: recipient.bitrix24UserId,
+          title:
+            sortedItems.length === 1
+              ? sortedItems[0].title
+              : `Нормбаза: ${sortedItems.length} новых событий`,
+          message: this.buildBitrix24Message(sortedItems),
+          cardUrl: sortedItems.length === 1 ? sortedItems[0].targetUrl : undefined,
+          messagePrefix: settings.messagePrefix,
+        });
+      } catch (error: any) {
+        this.logger.error(
+          `Не удалось отправить Bitrix24-уведомление пользователю ${recipient.fullName}`,
+          error?.stack || String(error),
+        );
+      }
+    }
+  }
+
+  private buildBitrix24Message(
+    items: Array<{
+      title: string;
+      message: string;
+      actorName?: string;
+      targetLabel: string;
+      targetUrl: string;
+    }>,
+  ) {
+    if (items.length === 1) {
+      const item = items[0];
+      return [
+        item.targetLabel,
+        item.actorName ? `Инициатор: ${item.actorName}` : null,
+        item.message,
+        `Открыть карточку: ${item.targetUrl}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
+    return items
+      .map((item, index) =>
+        [
+          `${index + 1}. ${item.title}`,
+          `Карточка: ${item.targetLabel}`,
+          item.actorName ? `Инициатор: ${item.actorName}` : null,
+          item.message,
+          `Ссылка: ${item.targetUrl}`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+      .join('\n\n');
   }
 
   private buildTransportOptions(params: {

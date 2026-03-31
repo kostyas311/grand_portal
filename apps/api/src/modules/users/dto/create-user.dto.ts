@@ -1,5 +1,5 @@
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
 export class CreateUserDto {
@@ -19,4 +19,9 @@ export class CreateUserDto {
   @ApiProperty({ enum: UserRole })
   @IsEnum(UserRole)
   role: UserRole;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bitrix24UserId?: string;
 }

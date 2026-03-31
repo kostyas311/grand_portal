@@ -14,6 +14,7 @@ import { FilesModule } from './modules/files/files.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminRequestsModule } from './modules/admin-requests/admin-requests.module';
 import { NotificationEmailSettingsModule } from './modules/notification-email-settings/notification-email-settings.module';
+import { Bitrix24NotificationSettingsModule } from './modules/bitrix24-notification-settings/bitrix24-notification-settings.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { NotificationEmailSettingsModule } from './modules/notification-email-se
     CommentsModule,
     FilesModule,
     NotificationEmailSettingsModule,
+    Bitrix24NotificationSettingsModule,
     NotificationsModule,
     AdminRequestsModule,
   ],

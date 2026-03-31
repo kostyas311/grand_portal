@@ -78,6 +78,7 @@ model User {
   isActive     Boolean   @default(true) @map("is_active")
   position     String?
   phone        String?
+  bitrix24UserId String? @map("bitrix24_user_id")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   lastLoginAt  DateTime? @map("last_login_at")
@@ -101,10 +102,12 @@ model User {
   createdAdminRequests AdminRequest[] @relation("AdminRequestCreator")
   completedAdminRequests AdminRequest[] @relation("AdminRequestCompleter")
   updatedNotificationEmailSettings NotificationEmailSettings[] @relation("NotificationEmailSettingsUpdatedBy")
+  updatedBitrix24NotificationSettings Bitrix24NotificationSettings[] @relation("Bitrix24NotificationSettingsUpdatedBy")
 
   @@index([email])
   @@index([role])
   @@index([isActive])
+  @@index([bitrix24UserId])
   @@map("users")
 }
 
@@ -370,6 +373,22 @@ model NotificationEmailSettings {
   @@index([isEnabled])
   @@index([updatedById])
   @@map("notification_email_settings")
+}
+
+model Bitrix24NotificationSettings {
+  id            String   @id @default("default")
+  isEnabled     Boolean  @default(false) @map("is_enabled")
+  webhookUrl    String?  @map("webhook_url")
+  messagePrefix String?  @map("message_prefix")
+  updatedById   String?  @map("updated_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("Bitrix24NotificationSettingsUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([isEnabled])
+  @@index([updatedById])
+  @@map("bitrix24_notification_settings")
 }
 
 model AdminRequest {

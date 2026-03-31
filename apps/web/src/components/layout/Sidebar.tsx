@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2, MessageSquareQuote, Mail,
+  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2, MessageSquareQuote, Mail, BellRing,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -28,6 +28,7 @@ const userNavItems = [
 const adminItems = [
   { href: '/admin/users', label: 'Пользователи', icon: Users },
   { href: '/admin/notifications', label: 'Email-уведомления', icon: Mail },
+  { href: '/admin/bitrix24', label: 'Bitrix24-уведомления', icon: BellRing },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

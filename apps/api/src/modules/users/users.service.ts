@@ -17,6 +17,7 @@ const USER_SELECT = {
   isActive: true,
   position: true,
   phone: true,
+  bitrix24UserId: true,
   createdAt: true,
   updatedAt: true,
   lastLoginAt: true,
@@ -65,6 +66,7 @@ export class UsersService {
         email: dto.email,
         passwordHash,
         role: dto.role,
+        bitrix24UserId: dto.bitrix24UserId?.trim() || null,
         isActive: true,
       },
       select: USER_SELECT,
@@ -87,6 +89,8 @@ export class UsersService {
         fullName: dto.fullName,
         email: dto.email,
         role: dto.role,
+        bitrix24UserId:
+          dto.bitrix24UserId !== undefined ? dto.bitrix24UserId.trim() || null : undefined,
       },
       select: USER_SELECT,
     });

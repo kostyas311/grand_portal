@@ -16,7 +16,13 @@ export default function AdminUsersPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [newUser, setNewUser] = useState({ fullName: '', email: '', password: '', role: 'USER' });
+  const [newUser, setNewUser] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    role: 'USER',
+    bitrix24UserId: '',
+  });
   const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
@@ -32,7 +38,7 @@ export default function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('Пользователь создан');
       setShowCreate(false);
-      setNewUser({ fullName: '', email: '', password: '', role: 'USER' });
+      setNewUser({ fullName: '', email: '', password: '', role: 'USER', bitrix24UserId: '' });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Ошибка'),
   });
@@ -128,6 +134,16 @@ export default function AdminUsersPage() {
                     <option value="MANAGER">Руководитель</option>
                     <option value="ADMIN">Администратор</option>
                   </select>
+                </div>
+                <div>
+                  <label className="label">ID Bitrix24</label>
+                  <input
+                    type="text"
+                    className="input"
+                    placeholder="Необязательно, например 17"
+                    value={newUser.bitrix24UserId}
+                    onChange={e => setNewUser(p => ({ ...p, bitrix24UserId: e.target.value }))}
+                  />
                 </div>
               </div>
               <div className="flex gap-2">
