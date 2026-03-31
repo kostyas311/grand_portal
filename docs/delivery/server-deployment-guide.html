@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Портал "Нормбаза" — Инструкция по развёртыванию</title>
+  <style>
+    :root {
+      --bg: #eef3f8;
+      --surface: #ffffff;
+      --surface-soft: #f7fafc;
+      --text: #17324d;
+      --muted: #5f7287;
+      --border: #d8e3ef;
+      --accent: #0f54b9;
+      --accent-soft: #eaf2ff;
+      --success: #137a3a;
+      --warn: #9a5a00;
+      --danger: #b42318;
+      --shadow: 0 20px 50px rgba(15, 35, 64, 0.08);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(180deg, #f5f8fc 0%, var(--bg) 100%);
+      color: var(--text);
+      line-height: 1.65;
+    }
+
+    .page {
+      width: min(1160px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #163b67 0%, #0f54b9 100%);
+      color: #fff;
+      border-radius: 30px;
+      padding: 34px 36px;
+      box-shadow: var(--shadow);
+      margin-bottom: 22px;
+    }
+
+    .hero-kicker {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      opacity: 0.78;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.05;
+      font-weight: 800;
+    }
+
+    .hero p {
+      margin: 14px 0 0;
+      max-width: 820px;
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .info-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .pill-label {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .pill-value {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 28px 30px;
+      margin-bottom: 18px;
+    }
+
+    .section h2 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      line-height: 1.15;
+    }
+
+    .section h3 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .section p {
+      margin: 10px 0;
+      color: var(--muted);
+    }
+
+    .note,
+    .warning,
+    .success {
+      border-radius: 18px;
+      padding: 16px 18px;
+      margin: 14px 0;
+      border: 1px solid transparent;
+    }
+
+    .note {
+      background: var(--accent-soft);
+      border-color: #c7dafd;
+      color: #20446f;
+    }
+
+    .warning {
+      background: #fff8ec;
+      border-color: #f0d39e;
+      color: #7b4d06;
+    }
+
+    .success {
+      background: #eef9f2;
+      border-color: #bde2c9;
+      color: #19603a;
+    }
+
+    ol,
+    ul {
+      margin: 12px 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 8px 0;
+    }
+
+    code,
+    .mono {
+      font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    }
+
+    pre {
+      margin: 14px 0;
+      padding: 16px 18px;
+      background: #0f1d2e;
+      color: #eef6ff;
+      border-radius: 18px;
+      overflow-x: auto;
+      border: 1px solid #23354b;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .check {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px solid var(--border);
+    }
+
+    .check-num {
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      margin-top: 1px;
+    }
+
+    .check-body strong {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f3f7fb;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .footer {
+      text-align: center;
+      color: #7d8da0;
+      font-size: 12px;
+      margin-top: 18px;
+    }
+
+    .tab-controls {
+      display: inline-flex;
+      gap: 10px;
+      padding: 8px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    .tab-button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 12px 18px;
+      border-radius: 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .tab-button.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(15, 84, 185, 0.22);
+    }
+
+    .tab-button:hover:not(.active) {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .page {
+        width: min(100vw - 20px, 100%);
+        padding-top: 18px;
+      }
+
+      .hero,
+      .section {
+        padding: 22px 20px;
+        border-radius: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-kicker">Портал "Нормбаза"</div>
+      <h1>Инструкция по развёртыванию</h1>
+      <p>
+        Полный запуск всех сервисов проекта в двух вариантах: на <strong>Ubuntu Server</strong> и на
+        <strong>Windows Server / обычном ПК с Windows</strong>. Для примеров в инструкции используй
+        шаблонный адрес вида <span class="mono">&lt;ваш-субдомен&gt;.grandsmeta.ru</span>.
+      </p>
+    </section>
+
+    <div class="info-strip">
+      <div class="pill">
+        <div class="pill-label">Сценарий</div>
+        <div class="pill-value">Развёртывание на сервере</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">ОС</div>
+        <div class="pill-value">Ubuntu Server и Windows Server / Windows</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Домен</div>
+        <div class="pill-value">&lt;ваш-субдомен&gt;.grandsmeta.ru</div>
+      </div>
+      <div class="pill">
+        <div class="pill-label">Важно</div>
+        <div class="pill-value">В production нужен HTTPS</div>
+      </div>
+    </div>
+
+    <section class="section">
+      <h2>1. Что будет установлено</h2>
+      <ul>
+        <li><strong>PostgreSQL</strong> — база данных.</li>
+        <li><strong>NormBase API</strong> — backend на NestJS.</li>
+        <li><strong>NormBase Web</strong> — frontend на Next.js.</li>
+        <li><strong>Nginx</strong> — reverse proxy, который будет принимать запросы снаружи.</li>
+        <li><strong>systemd</strong> — для автозапуска API и Web после перезагрузки сервера.</li>
+      </ul>
+
+      <div class="warning">
+        <strong>Очень важно:</strong> у проекта refresh-cookie выставляются как <span class="mono">Secure</span>.
+        Это значит, что на боевом сервере нужно открывать портал по <span class="mono">https://</span>, а не по обычному
+        <span class="mono">http://</span>.
+      </div>
+
+      <div class="note">
+        Ниже можно переключаться между вкладками <strong>Linux</strong> и <strong>Windows</strong>.
+        В каждой вкладке приведены именно свои команды, свои пути к файлам и свои примеры настройки.
+      </div>
+    </section>
+
+    <div class="tab-controls" role="tablist" aria-label="Выбор платформы">
+      <button class="tab-button active" type="button" role="tab" aria-selected="true" data-tab="linux">Linux</button>
+      <button class="tab-button" type="button" role="tab" aria-selected="false" data-tab="windows">Windows</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-linux">
+
+    <section class="section">
+      <h2>2. Что нужно заранее</h2>
+      <table>
+        <tr>
+          <th>Параметр</th>
+          <th>Минимум</th>
+          <th>Лучше</th>
+        </tr>
+        <tr>
+          <td>CPU</td>
+          <td>2 vCPU</td>
+          <td>4 vCPU</td>
+        </tr>
+        <tr>
+          <td>RAM</td>
+          <td>4 GB</td>
+          <td>8 GB</td>
+        </tr>
+        <tr>
+          <td>Диск</td>
+          <td>40 GB</td>
+          <td>100 GB+</td>
+        </tr>
+        <tr>
+          <td>ОС</td>
+          <td>Ubuntu 22.04</td>
+          <td>Ubuntu 24.04</td>
+        </tr>
+      </table>
+
+      <p>Также заранее подготовь:</p>
+      <ul>
+        <li>доступ по SSH на сервер;</li>
+        <li>домен <span class="mono">&lt;ваш-субдомен&gt;.grandsmeta.ru</span>;</li>
+        <li>DNS-запись, указывающую на IP сервера;</li>
+        <li>доступ к Git-репозиторию проекта.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>3. Подготовка сервера</h2>
+
+      <h3>Шаг 3.1. Обнови систему</h3>
+      <pre><code>sudo apt update
+sudo apt upgrade -y</code></pre>
+
+      <h3>Шаг 3.2. Установи базовые пакеты</h3>
+      <pre><code>sudo apt install -y git curl nginx postgresql postgresql-contrib ufw build-essential</code></pre>
+
+      <h3>Шаг 3.3. Проверь, что всё установилось</h3>
+      <pre><code>nginx -v
+psql --version
+git --version</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>4. Установка Node.js 20</h2>
+      <p>Проект использует современный Node.js. Рекомендуемый вариант — Node.js 20.</p>
+
+      <pre><code>curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs</code></pre>
+
+      <p>Проверка:</p>
+      <pre><code>node -v
+npm -v</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>5. Открой порты в firewall</h2>
+      <p>Если у тебя включён <span class="mono">ufw</span>, выполни:</p>
+
+      <pre><code>sudo ufw allow OpenSSH
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+sudo ufw status</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>6. Создай системного пользователя для проекта</h2>
+      <p>Нельзя запускать рабочий проект под <span class="mono">root</span>.</p>
+
+      <pre><code>sudo adduser --system --group --home /opt/normbase normbase
+sudo mkdir -p /opt/normbase
+sudo chown -R normbase:normbase /opt/normbase</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>7. Клонируй проект</h2>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt &amp;&amp; git clone &lt;URL_РЕПОЗИТОРИЯ&gt; normbase'</code></pre>
+
+      <p>Проверка:</p>
+      <pre><code>ls -la /opt/normbase</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>8. Создай папку хранения файлов</h2>
+      <pre><code>sudo -u normbase mkdir -p /opt/normbase/storage
+sudo chown -R normbase:normbase /opt/normbase/storage
+chmod 755 /opt/normbase/storage</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>9. Настрой PostgreSQL</h2>
+
+      <h3>Шаг 9.1. Зайди в PostgreSQL</h3>
+      <pre><code>sudo -u postgres psql</code></pre>
+
+      <h3>Шаг 9.2. Создай пользователя и базу</h3>
+      <pre><code>CREATE USER normbase WITH PASSWORD 'СЛОЖНЫЙ_ПАРОЛЬ_БД';
+CREATE DATABASE normbase OWNER normbase;
+\q</code></pre>
+
+      <h3>Шаг 9.3. Проверь подключение</h3>
+      <pre><code>psql "postgresql://normbase:СЛОЖНЫЙ_ПАРОЛЬ_БД@127.0.0.1:5432/normbase" -c '\dt'</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>10. Создай файл окружения для backend</h2>
+      <p>Файл должен лежать здесь:</p>
+      <pre><code>/opt/normbase/apps/api/.env</code></pre>
+
+      <pre><code>sudo -u normbase nano /opt/normbase/apps/api/.env</code></pre>
+
+      <p>Вставь и заполни:</p>
+      <pre><code>DATABASE_URL=postgresql://normbase:СЛОЖНЫЙ_ПАРОЛЬ_БД@127.0.0.1:5432/normbase
+
+JWT_SECRET=СЮДА_ОЧЕНЬ_ДЛИННЫЙ_СЕКРЕТ_1
+JWT_REFRESH_SECRET=СЮДА_ОЧЕНЬ_ДЛИННЫЙ_СЕКРЕТ_2
+JWT_ACCESS_EXPIRES=15m
+JWT_REFRESH_EXPIRES=7d
+
+STORAGE_PATH=/opt/normbase/storage
+MAX_FILE_SIZE=524288000
+ZIP_SIZE_LIMIT=524288000
+
+NODE_ENV=production
+PORT=3001
+
+PORTAL_BASE_URL=https://&lt;ваш-субдомен&gt;.grandsmeta.ru
+APP_BASE_URL=https://&lt;ваш-субдомен&gt;.grandsmeta.ru
+
+ADMIN_EMAIL=admin@grandsmeta.ru
+ADMIN_PASSWORD=СЛОЖНЫЙ_ПАРОЛЬ_АДМИНА
+ADMIN_FULL_NAME=Администратор системы</code></pre>
+
+      <p>Сгенерировать секреты можно так:</p>
+      <pre><code>openssl rand -hex 32
+openssl rand -hex 32</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>11. Создай файл окружения для frontend</h2>
+      <p>Файл должен лежать здесь:</p>
+      <pre><code>/opt/normbase/apps/web/.env.production</code></pre>
+
+      <pre><code>sudo -u normbase nano /opt/normbase/apps/web/.env.production</code></pre>
+
+      <pre><code>NEXT_PUBLIC_API_URL=/api</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>12. Установи зависимости</h2>
+
+      <h3>Backend</h3>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; npm install'</code></pre>
+
+      <h3>Frontend</h3>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/web &amp;&amp; npm install'</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>13. Собери backend и подготовь базу</h2>
+
+      <h3>Шаг 13.1. Сгенерируй Prisma client и собери backend</h3>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; npx prisma generate &amp;&amp; npm run build'</code></pre>
+
+      <h3>Шаг 13.2. Примени схему базы</h3>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; npx prisma db push'</code></pre>
+
+      <h3>Шаг 13.3. Создай администратора и стартовые источники</h3>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; npm run seed'</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>14. Собери frontend</h2>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/web &amp;&amp; npm run build'</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>15. Создай systemd-сервис для API</h2>
+      <pre><code>sudo nano /etc/systemd/system/normbase-api.service</code></pre>
+
+      <pre><code>[Unit]
+Description=NormBase API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=normbase
+Group=normbase
+WorkingDirectory=/opt/normbase/apps/api
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>16. Создай systemd-сервис для Web</h2>
+      <pre><code>sudo nano /etc/systemd/system/normbase-web.service</code></pre>
+
+      <pre><code>[Unit]
+Description=NormBase Web
+After=network.target normbase-api.service
+Wants=normbase-api.service
+
+[Service]
+Type=simple
+User=normbase
+Group=normbase
+WorkingDirectory=/opt/normbase/apps/web
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>17. Включи и запусти сервисы</h2>
+      <pre><code>sudo systemctl daemon-reload
+sudo systemctl enable normbase-api
+sudo systemctl enable normbase-web
+sudo systemctl start normbase-api
+sudo systemctl start normbase-web</code></pre>
+
+      <p>Проверка:</p>
+      <pre><code>sudo systemctl status normbase-api
+sudo systemctl status normbase-web</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>18. Проверь локально, что сервисы отвечают</h2>
+      <pre><code>curl http://127.0.0.1:3001
+curl http://127.0.0.1:3000</code></pre>
+
+      <div class="note">
+        На порту <span class="mono">3001</span> может прийти <span class="mono">404</span> или другой не очень красивый ответ.
+        Это нормально. Главное — чтобы порт отвечал.
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>19. Настрой Nginx</h2>
+
+      <pre><code>sudo nano /etc/nginx/sites-available/normbase</code></pre>
+
+      <pre><code>server {
+    listen 80;
+    server_name &lt;ваш-субдомен&gt;.grandsmeta.ru;
+
+    client_max_body_size 512M;
+    client_body_timeout 300s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location /api/ {
+        rewrite ^/api/?(.*)$ /$1 break;
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}</code></pre>
+
+      <p>Включи конфиг:</p>
+      <pre><code>sudo ln -s /etc/nginx/sites-available/normbase /etc/nginx/sites-enabled/normbase
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl restart nginx</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>20. Настрой DNS</h2>
+      <p>На DNS-сервере создай запись:</p>
+      <pre><code>&lt;ваш-субдомен&gt;.grandsmeta.ru -&gt; IP_ТВОЕГО_СЕРВЕРА</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>21. Выпусти HTTPS-сертификат</h2>
+      <p>Без этого production-логин будет работать нестабильно или не будет работать нормально.</p>
+
+      <pre><code>sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d &lt;ваш-субдомен&gt;.grandsmeta.ru</code></pre>
+
+      <p>После выпуска сертификата проверь:</p>
+      <pre><code>sudo nginx -t
+sudo systemctl reload nginx</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>22. Первый вход</h2>
+      <pre><code>https://&lt;ваш-субдомен&gt;.grandsmeta.ru/login</code></pre>
+
+      <p>Данные для входа:</p>
+      <ul>
+        <li><span class="mono">ADMIN_EMAIL</span> из файла <span class="mono">apps/api/.env</span></li>
+        <li><span class="mono">ADMIN_PASSWORD</span> из файла <span class="mono">apps/api/.env</span></li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>23. Что сделать сразу после первого запуска</h2>
+      <div class="checklist">
+        <div class="check">
+          <div class="check-num">1</div>
+          <div class="check-body">
+            <strong>Проверь вход в систему</strong>
+            Убедись, что после логина открывается “Мой кабинет”.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">2</div>
+          <div class="check-body">
+            <strong>Создай пользователей</strong>
+            Открой раздел “Пользователи” и добавь сотрудников.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">3</div>
+          <div class="check-body">
+            <strong>Проверь источники данных</strong>
+            Убедись, что стартовый справочник создался.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">4</div>
+          <div class="check-body">
+            <strong>Настрой SMTP</strong>
+            Перейди в “Email-уведомления” и проверь кнопку “Тест соединения”.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">5</div>
+          <div class="check-body">
+            <strong>Смени пароль администратора</strong>
+            Не оставляй пароль из первоначального seed.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>24. Как обновлять проект</h2>
+      <pre><code>sudo -u normbase -H bash -lc 'cd /opt/normbase &amp;&amp; git pull'
+sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; npm install'
+sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/web &amp;&amp; npm install'
+sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; npx prisma generate &amp;&amp; npm run build'
+sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/api &amp;&amp; set -a &amp;&amp; source .env &amp;&amp; set +a &amp;&amp; npx prisma db push'
+sudo -u normbase -H bash -lc 'cd /opt/normbase/apps/web &amp;&amp; npm run build'
+sudo systemctl restart normbase-api
+sudo systemctl restart normbase-web
+sudo systemctl reload nginx</code></pre>
+    </section>
+
+    </div>
+
+    <div class="tab-panel" id="tab-windows">
+    <section class="section">
+      <h2>25. Отдельный сценарий для Windows Server или обычного ПК с Windows</h2>
+
+      <div class="warning">
+        <strong>Важно:</strong> развёртывание на Windows подходит для пилота, внутреннего стенда,
+        демонстрации или небольшого внедрения. Для максимально стабильного production-сценария
+        всё равно предпочтительнее Ubuntu Server. Но если у вас инфраструктурно удобнее Windows,
+        портал можно запустить и так.
+      </div>
+
+      <h3>25.1. Что понадобится на Windows</h3>
+      <ul>
+        <li><strong>ОС:</strong> Windows Server 2019/2022 или Windows 10/11 Pro.</li>
+        <li><strong>Права:</strong> локальный администратор на машине.</li>
+        <li><strong>Сеть:</strong> статический IP или корректная DNS-запись на сервер.</li>
+        <li><strong>Домен:</strong> например <span class="mono">&lt;ваш-субдомен&gt;.grandsmeta.ru</span>.</li>
+        <li><strong>HTTPS:</strong> обязательно для нормальной работы авторизации.</li>
+      </ul>
+
+      <h3>25.2. Создай рабочие папки</h3>
+      <pre><code>mkdir C:\NormBase
+mkdir C:\NormBase\storage
+mkdir C:\NormBase\logs
+mkdir C:\NormBase\tools</code></pre>
+
+      <p>Дальше считаем, что проект будет жить в папке <span class="mono">C:\NormBase\app</span>.</p>
+
+      <h3>25.3. Установи необходимые программы</h3>
+      <ol>
+        <li>Установи <strong>Git for Windows</strong>.</li>
+        <li>Установи <strong>Node.js 20 LTS</strong>.</li>
+        <li>Установи <strong>PostgreSQL 16</strong> или совместимую версию.</li>
+        <li>Скачай <strong>Nginx for Windows</strong> и распакуй, например, в <span class="mono">C:\nginx</span>.</li>
+        <li>Скачай <strong>NSSM</strong> (Non-Sucking Service Manager), чтобы красиво зарегистрировать API, Web и Nginx как службы Windows.</li>
+      </ol>
+
+      <div class="note">
+        <strong>Почему нужен NSSM:</strong> без него можно запускать портал вручную в нескольких окнах PowerShell,
+        но после перезагрузки компьютера всё придётся поднимать руками. NSSM позволяет сделать это как нормальные
+        службы Windows.
+      </div>
+
+      <h3>25.4. Проверь Node.js</h3>
+      <pre><code>node -v
+npm -v</code></pre>
+
+      <p>Должна быть версия Node.js уровня <span class="mono">20.x</span>.</p>
+
+      <h3>25.5. Склонируй проект</h3>
+      <pre><code>cd C:\NormBase
+git clone &lt;URL_РЕПОЗИТОРИЯ&gt; app</code></pre>
+
+      <h3>25.6. Создай базу в PostgreSQL</h3>
+      <p>Открой <strong>SQL Shell (psql)</strong> или обычный PowerShell и выполни:</p>
+      <pre><code>psql -U postgres</code></pre>
+
+      <p>Далее внутри PostgreSQL:</p>
+      <pre><code>CREATE USER normbase WITH PASSWORD 'СЛОЖНЫЙ_ПАРОЛЬ_БД';
+CREATE DATABASE normbase OWNER normbase;
+\q</code></pre>
+
+      <h3>25.7. Создай backend-конфиг</h3>
+      <p>Создай файл <span class="mono">C:\NormBase\app\apps\api\.env</span> со следующим содержимым:</p>
+      <pre><code>DATABASE_URL=postgresql://normbase:СЛОЖНЫЙ_ПАРОЛЬ_БД@127.0.0.1:5432/normbase
+
+JWT_SECRET=СЮДА_ДЛИННЫЙ_СЛУЧАЙНЫЙ_СЕКРЕТ_1
+JWT_REFRESH_SECRET=СЮДА_ДЛИННЫЙ_СЛУЧАЙНЫЙ_СЕКРЕТ_2
+JWT_ACCESS_EXPIRES=15m
+JWT_REFRESH_EXPIRES=7d
+
+STORAGE_PATH=C:\NormBase\storage
+MAX_FILE_SIZE=524288000
+ZIP_SIZE_LIMIT=524288000
+
+NODE_ENV=production
+PORT=3001
+
+PORTAL_BASE_URL=https://&lt;ваш-субдомен&gt;.grandsmeta.ru
+APP_BASE_URL=https://&lt;ваш-субдомен&gt;.grandsmeta.ru
+
+ADMIN_EMAIL=admin@grandsmeta.ru
+ADMIN_PASSWORD=СЛОЖНЫЙ_ПАРОЛЬ_АДМИНА
+ADMIN_FULL_NAME=Администратор системы</code></pre>
+
+      <h3>25.8. Создай frontend-конфиг</h3>
+      <p>Создай файл <span class="mono">C:\NormBase\app\apps\web\.env.production</span>:</p>
+      <pre><code>NEXT_PUBLIC_API_URL=/api</code></pre>
+
+      <h3>25.9. Установи зависимости и собери проект</h3>
+      <pre><code>cd C:\NormBase\app\apps\api
+npm install
+npx prisma generate
+npm run build
+
+cd C:\NormBase\app\apps\web
+npm install
+npm run build</code></pre>
+
+      <h3>25.10. Примени структуру базы и выполни seed</h3>
+      <p>Открой PowerShell именно в папке backend и выполни:</p>
+      <pre><code>cd C:\NormBase\app\apps\api
+
+$env:DATABASE_URL="postgresql://normbase:СЛОЖНЫЙ_ПАРОЛЬ_БД@127.0.0.1:5432/normbase"
+$env:JWT_SECRET="СЮДА_ДЛИННЫЙ_СЛУЧАЙНЫЙ_СЕКРЕТ_1"
+$env:JWT_REFRESH_SECRET="СЮДА_ДЛИННЫЙ_СЛУЧАЙНЫЙ_СЕКРЕТ_2"
+$env:JWT_ACCESS_EXPIRES="15m"
+$env:JWT_REFRESH_EXPIRES="7d"
+$env:STORAGE_PATH="C:\NormBase\storage"
+$env:MAX_FILE_SIZE="524288000"
+$env:ZIP_SIZE_LIMIT="524288000"
+$env:NODE_ENV="production"
+$env:PORT="3001"
+$env:PORTAL_BASE_URL="https://&lt;ваш-субдомен&gt;.grandsmeta.ru"
+$env:APP_BASE_URL="https://&lt;ваш-субдомен&gt;.grandsmeta.ru"
+$env:ADMIN_EMAIL="admin@grandsmeta.ru"
+$env:ADMIN_PASSWORD="СЛОЖНЫЙ_ПАРОЛЬ_АДМИНА"
+$env:ADMIN_FULL_NAME="Администратор системы"
+
+npx prisma db push
+npm run seed</code></pre>
+
+      <div class="note">
+        На Windows это самый прямой способ. Сначала экспортируешь переменные в текущую сессию PowerShell,
+        затем выполняешь <span class="mono">db push</span> и <span class="mono">seed</span>.
+      </div>
+
+      <h3>25.11. Проверь ручной запуск до регистрации служб</h3>
+      <p>Сначала убедись, что проект вообще запускается вручную.</p>
+
+      <p><strong>Окно PowerShell №1 — backend:</strong></p>
+      <pre><code>cd C:\NormBase\app\apps\api
+npm run start</code></pre>
+
+      <p><strong>Окно PowerShell №2 — frontend:</strong></p>
+      <pre><code>cd C:\NormBase\app\apps\web
+npm run start</code></pre>
+
+      <p>Теперь проверь:</p>
+      <pre><code>Invoke-WebRequest http://127.0.0.1:3001 -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:3000 -UseBasicParsing</code></pre>
+
+      <p>Если порты отвечают, можно переходить к службам.</p>
+
+      <h3>25.12. Зарегистрируй API как службу Windows через NSSM</h3>
+      <p>Пример, если NSSM лежит в <span class="mono">C:\NormBase\tools\nssm.exe</span>:</p>
+      <pre><code>C:\NormBase\tools\nssm.exe install NormBaseAPI
+
+Application path:
+C:\Program Files\nodejs\npm.cmd
+
+Startup directory:
+C:\NormBase\app\apps\api
+
+Arguments:
+run start</code></pre>
+
+      <p>Во вкладке <strong>Details</strong> можно задать:</p>
+      <ul>
+        <li>Display name: <span class="mono">NormBase API</span></li>
+        <li>Startup type: <span class="mono">Automatic</span></li>
+      </ul>
+
+      <p>Во вкладке <strong>I/O</strong> желательно сразу указать логи:</p>
+      <ul>
+        <li>Output: <span class="mono">C:\NormBase\logs\api-out.log</span></li>
+        <li>Error: <span class="mono">C:\NormBase\logs\api-error.log</span></li>
+      </ul>
+
+      <h3>25.13. Зарегистрируй Web как службу Windows через NSSM</h3>
+      <pre><code>C:\NormBase\tools\nssm.exe install NormBaseWeb
+
+Application path:
+C:\Program Files\nodejs\npm.cmd
+
+Startup directory:
+C:\NormBase\app\apps\web
+
+Arguments:
+run start</code></pre>
+
+      <p>Логи аналогично:</p>
+      <ul>
+        <li>Output: <span class="mono">C:\NormBase\logs\web-out.log</span></li>
+        <li>Error: <span class="mono">C:\NormBase\logs\web-error.log</span></li>
+      </ul>
+
+      <h3>25.14. Зарегистрируй Nginx как службу Windows</h3>
+      <pre><code>C:\NormBase\tools\nssm.exe install NormBaseNginx
+
+Application path:
+C:\nginx\nginx.exe
+
+Startup directory:
+C:\nginx
+
+Arguments:
+</code></pre>
+
+      <h3>25.15. Настрой Nginx на Windows</h3>
+      <p>Файл конфигурации: <span class="mono">C:\nginx\conf\nginx.conf</span></p>
+      <pre><code>worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+    keepalive_timeout  65;
+
+    server {
+        listen 80;
+        server_name &lt;ваш-субдомен&gt;.grandsmeta.ru;
+
+        client_max_body_size 512M;
+
+        location /api/ {
+            rewrite ^/api/?(.*)$ /$1 break;
+            proxy_pass http://127.0.0.1:3001;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location / {
+            proxy_pass http://127.0.0.1:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}</code></pre>
+
+      <h3>25.16. Настрой HTTPS на Windows</h3>
+      <p>Для Windows самый практичный путь — использовать <strong>win-acme</strong> или корпоративный сертификат вашей компании.</p>
+      <ol>
+        <li>Скачай <strong>win-acme</strong>.</li>
+        <li>Выпусти сертификат на <span class="mono">&lt;ваш-субдомен&gt;.grandsmeta.ru</span>.</li>
+        <li>Подключи сертификат в Nginx.</li>
+        <li>Сделай редирект с <span class="mono">http://</span> на <span class="mono">https://</span>.</li>
+      </ol>
+
+      <div class="warning">
+        Если сертификат не настроен, логин и refresh-cookie на production-домене могут работать некорректно.
+        На боевом контуре HTTPS обязателен.
+      </div>
+
+      <h3>25.17. Запусти службы</h3>
+      <pre><code>Start-Service NormBaseAPI
+Start-Service NormBaseWeb
+Start-Service NormBaseNginx</code></pre>
+
+      <p>Проверь статус:</p>
+      <pre><code>Get-Service NormBaseAPI
+Get-Service NormBaseWeb
+Get-Service NormBaseNginx</code></pre>
+
+      <h3>25.18. Что проверить после запуска на Windows</h3>
+      <div class="checklist">
+        <div class="check">
+          <div class="check-num">1</div>
+          <div class="check-body">
+            <strong>Открывается ли сайт</strong>
+            Открой <span class="mono">https://&lt;ваш-субдомен&gt;.grandsmeta.ru/login</span>.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">2</div>
+          <div class="check-body">
+            <strong>Работает ли вход администратора</strong>
+            Используй <span class="mono">ADMIN_EMAIL</span> и <span class="mono">ADMIN_PASSWORD</span> из backend-конфига.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">3</div>
+          <div class="check-body">
+            <strong>Работает ли загрузка файла</strong>
+            Создай тестовую карточку и загрузи файл, чтобы проверить папку <span class="mono">C:\NormBase\storage</span>.
+          </div>
+        </div>
+        <div class="check">
+          <div class="check-num">4</div>
+          <div class="check-body">
+            <strong>Работают ли email-уведомления</strong>
+            После входа администратора открой раздел настройки почты и нажми “Тест соединения”.
+          </div>
+        </div>
+      </div>
+
+      <h3>25.19. Как обновлять проект на Windows</h3>
+      <pre><code>Stop-Service NormBaseAPI
+Stop-Service NormBaseWeb
+
+cd C:\NormBase\app
+git pull
+
+cd C:\NormBase\app\apps\api
+npm install
+npx prisma generate
+npm run build
+npx prisma db push
+
+cd C:\NormBase\app\apps\web
+npm install
+npm run build
+
+Start-Service NormBaseAPI
+Start-Service NormBaseWeb
+Restart-Service NormBaseNginx</code></pre>
+
+      <h3>25.20. Полезная диагностика на Windows</h3>
+      <pre><code>Get-Service NormBaseAPI, NormBaseWeb, NormBaseNginx
+
+Get-Content C:\NormBase\logs\api-error.log -Tail 100
+Get-Content C:\NormBase\logs\web-error.log -Tail 100
+
+netstat -ano | findstr :3000
+netstat -ano | findstr :3001
+netstat -ano | findstr :80
+netstat -ano | findstr :443
+
+Invoke-WebRequest http://127.0.0.1:3000 -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:3001 -UseBasicParsing</code></pre>
+    </section>
+
+    </div>
+
+    <section class="section">
+      <h2>26. Дополнительная диагностика для Linux</h2>
+
+      <h3>Статусы сервисов</h3>
+      <pre><code>sudo systemctl status normbase-api
+sudo systemctl status normbase-web
+sudo systemctl status nginx
+sudo systemctl status postgresql</code></pre>
+
+      <h3>Логи</h3>
+      <pre><code>sudo journalctl -u normbase-api -f
+sudo journalctl -u normbase-web -f
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/nginx/access.log</code></pre>
+
+      <h3>Проверка портов</h3>
+      <pre><code>ss -tulpn | grep 3000
+ss -tulpn | grep 3001
+ss -tulpn | grep 5432
+ss -tulpn | grep 80
+ss -tulpn | grep 443</code></pre>
+    </section>
+
+    <section class="section">
+      <h2>27. Частые проблемы</h2>
+
+      <h3>Сайт не открывается</h3>
+      <pre><code>sudo nginx -t
+sudo systemctl status nginx</code></pre>
+
+      <h3>Не работает логин</h3>
+      <p>Почти всегда причина в том, что заходят по <span class="mono">http://</span>, а не по <span class="mono">https://</span>.</p>
+
+      <h3>API не стартует</h3>
+      <pre><code>sudo journalctl -u normbase-api -f</code></pre>
+
+      <h3>Web не стартует</h3>
+      <pre><code>sudo journalctl -u normbase-web -f</code></pre>
+
+      <h3>Не загружаются файлы</h3>
+      <p>Проверь права на <span class="mono">/opt/normbase/storage</span> и директиву <span class="mono">client_max_body_size</span> в Nginx.</p>
+
+      <h3>Не работают email-уведомления</h3>
+      <p>Сначала проверяй SMTP через кнопку “Тест соединения”, потом сетевую доступность почтового сервера, и только потом логин/пароль.</p>
+    </section>
+
+    <section class="section">
+      <h2>28. Что желательно сделать обязательно</h2>
+      <ul>
+        <li>настроить резервное копирование PostgreSQL;</li>
+        <li>настроить резервное копирование папки <span class="mono">/opt/normbase/storage</span>;</li>
+        <li>проверять свободное место на диске;</li>
+        <li>использовать отдельный служебный email для администратора;</li>
+        <li>после развёртывания пройти тестовый сценарий: карточка -> результат -> проверка -> уведомление.</li>
+        <li>после первого входа администратор должен в личном кабинете настроить email-рассылку для домена <span class="mono">grandsmeta.ru</span> и проверить её через кнопку “Тест соединения”.</li>
+      </ul>
+
+      <div class="success">
+        Если все шаги выше выполнены, портал должен стабильно работать по адресу
+        <strong>https://&lt;ваш-субдомен&gt;.grandsmeta.ru</strong>.
+      </div>
+
+      <div class="warning">
+        Настройка email-рассылки не делается на уровне файлов проекта. Это отдельный обязательный шаг уже внутри портала:
+        администратор входит в систему, открывает свой кабинет, переходит в настройки email-уведомлений и заполняет параметры
+        почтового сервера для домена <span class="mono">grandsmeta.ru</span>.
+      </div>
+    </section>
+
+    <div class="footer">
+      Группа компаний МГК "ГРАНД" • Портал "Нормбаза" • Инструкция по развёртыванию
+    </div>
+  </div>
+  <script>
+    (function () {
+      const buttons = document.querySelectorAll('.tab-button');
+      const panels = {
+        linux: document.getElementById('tab-linux'),
+        windows: document.getElementById('tab-windows')
+      };
+
+      function activateTab(tab) {
+        buttons.forEach((button) => {
+          const isActive = button.dataset.tab === tab;
+          button.classList.toggle('active', isActive);
+          button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        Object.entries(panels).forEach(([name, panel]) => {
+          panel.classList.toggle('active', name === tab);
+        });
+      }
+
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => activateTab(button.dataset.tab));
+      });
+    })();
+  </script>
+</body>
+</html>
