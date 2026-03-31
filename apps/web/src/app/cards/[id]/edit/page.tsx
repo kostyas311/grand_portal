@@ -12,6 +12,8 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { cardsApi, dataSourcesApi, usersApi } from '@/lib/api';
 import { getMonthName } from '@/lib/utils';
 import { useEffect } from 'react';
+import { CardStatusBadge } from '@/components/cards/CardStatusBadge';
+import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 
 const schema = z.object({
   dataSourceId: z.string().min(1),
@@ -94,20 +96,41 @@ export default function EditCardPage() {
 
   return (
     <AppLayout>
-      <div className="page-container max-w-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href={`/cards/${card.publicId}`} className="btn-ghost">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="section-title">Редактирование карточки</h1>
-            <div className="text-sm text-gray-400 font-mono">{card.publicId}</div>
+      <div className="page-container max-w-4xl">
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div>
+                <div className="page-kicker">Карточки</div>
+                <h1 className="section-title mt-2">Редактирование карточки</h1>
+                <p className="page-subtitle">
+                  Изменения вносятся в рамках единой формы карточки и сразу сохраняют её текущий рабочий контекст.
+                </p>
+                <div className="page-chip-row">
+                  <span className="page-chip font-mono">{card.publicId}</span>
+                  <CardStatusBadge status={card.status} />
+                  <CardPriorityBadge priority={card.priority} />
+                  <span className="page-chip">{getMonthName(card.month)} {card.year}</span>
+                </div>
+              </div>
+              <div className="flex items-start">
+                <Link href={`/cards/${card.publicId}`} className="btn-ghost">
+                  <ArrowLeft className="w-4 h-4" />
+                  Назад
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit(data => updateMutation.mutate(data))} className="space-y-4">
-          <div className="card">
-            <div className="card-header"><h2 className="font-medium text-gray-700">Основные данные</h2></div>
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div>
+                <h2 className="section-surface-title">Основные данные</h2>
+                <p className="section-surface-subtitle">Базовые реквизиты карточки и её описание.</p>
+              </div>
+            </div>
             <div className="card-body space-y-4">
               <div>
                 <label className="label label-required">Источник данных</label>
@@ -121,7 +144,7 @@ export default function EditCardPage() {
                 <input type="text" className="input" {...register('extraTitle')} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="form-grid-2">
                 <div>
                   <label className="label label-required">Месяц</label>
                   <select className="input" {...register('month', { valueAsNumber: true })}>
@@ -145,10 +168,15 @@ export default function EditCardPage() {
             </div>
           </div>
 
-          <div className="card">
-            <div className="card-header"><h2 className="font-medium text-gray-700">Параметры</h2></div>
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div>
+                <h2 className="section-surface-title">Параметры</h2>
+                <p className="section-surface-subtitle">Приоритет и срок исполнения для текущей версии карточки.</p>
+              </div>
+            </div>
             <div className="card-body space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="form-grid-2">
                 <div>
                   <label className="label">Приоритет</label>
                   <select className="input" {...register('priority')}>
@@ -166,7 +194,7 @@ export default function EditCardPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3">
+          <div className="form-actions">
             <Link href={`/cards/${card.publicId}`} className="btn-secondary">Отмена</Link>
             <button type="submit" className="btn-primary" disabled={updateMutation.isPending}>
               {updateMutation.isPending ? <><Loader2 className="w-4 h-4 animate-spin" />Сохранение...</> : 'Сохранить'}

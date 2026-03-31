@@ -47,6 +47,8 @@ export const cardsApi = {
     executorId?: string;
     reviewerId?: string;
     parentId?: string;
+    withoutResult?: boolean;
+    withoutSourceMaterials?: boolean;
   }) => {
     const { data } = await apiClient.post('/cards', dto);
     return data;
@@ -60,6 +62,8 @@ export const cardsApi = {
     description: string;
     priority: string;
     dueDate: string;
+    withoutResult: boolean;
+    withoutSourceMaterials: boolean;
   }>) => {
     const { data } = await apiClient.patch(`/cards/${id}`, dto);
     return data;

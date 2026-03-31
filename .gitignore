@@ -56,3 +56,8 @@ coverage/
 .cache/
 tmp/
 temp/
+
+# Generated browser profiles and local capture artifacts
+docs/product/edge-profile*/
+docs/product/playwright/
+docs/product/browser-profile*/

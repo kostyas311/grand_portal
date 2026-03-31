@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryKey, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cardsApi } from '@/lib/api';
 import { formatDate, getDueDateIndicator } from '@/lib/utils';
@@ -39,7 +40,7 @@ const PRIORITY_LABELS: Record<string, string> = {
 
 interface KanbanBoardProps {
   cards: any[];
-  queryKey: string[];
+  queryKey: QueryKey;
 }
 
 export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
@@ -47,6 +48,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
+  const suppressCardOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [dragCardId, setDragCardId] = useState<string | null>(null);
   const [dragCardStatus, setDragCardStatus] = useState<string | null>(null);
@@ -56,6 +58,21 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
   const [pending, setPending] = useState<{ cardId: string; fromStatus: string; toStatus: string } | null>(null);
   const [comment, setComment] = useState('');
   const [reason, setReason] = useState('');
+  const [suppressCardOpen, setSuppressCardOpen] = useState(false);
+  const [showEmptyColumns, setShowEmptyColumns] = useState(true);
+
+  // After drag-and-drop, suppress the card click briefly so the board does not
+  // accidentally navigate into the card details page.
+  const blockCardOpenBriefly = () => {
+    setSuppressCardOpen(true);
+    if (suppressCardOpenTimeoutRef.current) {
+      clearTimeout(suppressCardOpenTimeoutRef.current);
+    }
+    suppressCardOpenTimeoutRef.current = setTimeout(() => {
+      setSuppressCardOpen(false);
+      suppressCardOpenTimeoutRef.current = null;
+    }, 250);
+  };
 
   const statusMutation = useMutation({
     mutationFn: ({ cardId, status, comment, reason, force }: any) =>
@@ -95,6 +112,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
   };
 
   const handleDragStart = (e: React.DragEvent, cardId: string, status: string) => {
+    blockCardOpenBriefly();
     setDragCardId(cardId);
     setDragCardStatus(status);
     e.dataTransfer.effectAllowed = 'move';
@@ -104,6 +122,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
     setDragCardId(null);
     setDragCardStatus(null);
     setDragOverCol(null);
+    blockCardOpenBriefly();
   };
 
   const handleDragOver = (e: React.DragEvent, status: string) => {
@@ -122,6 +141,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
   const handleDrop = (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
     setDragOverCol(null);
+    blockCardOpenBriefly();
     if (!dragCardId || dragCardStatus === targetStatus) return;
 
     if (isAdmin) {
@@ -134,6 +154,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
 
   const confirmChange = (force = false) => {
     if (!pending) return;
+    blockCardOpenBriefly();
     statusMutation.mutate({
       cardId: pending.cardId,
       status: pending.toStatus,
@@ -143,42 +164,86 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
     });
   };
 
+  const handleCardClick = (publicId: string) => {
+    if (suppressCardOpen || dialogOpen || !!dragCardId) {
+      return;
+    }
+    router.push(`/cards/${publicId}`);
+  };
+
   const needsComment = pending?.toStatus === 'IN_PROGRESS' && pending?.fromStatus === 'REVIEW';
   const needsReason = pending?.toStatus === 'CANCELLED';
+  const columnsWithCards = useMemo(
+    () => COLUMNS.map((col) => ({ ...col, cards: cards.filter((card) => card.status === col.status) })),
+    [cards],
+  );
+  const hiddenColumnsCount = columnsWithCards.filter((col) => col.cards.length === 0).length;
+  const visibleColumns =
+    showEmptyColumns || cards.length === 0
+      ? columnsWithCards
+      : columnsWithCards.filter((col) => col.cards.length > 0);
 
   return (
     <>
-      <div className="flex gap-3 pb-4 min-h-[500px]">
-        {COLUMNS.map((col) => {
-          const colCards = cards.filter((c) => c.status === col.status);
+      <div className="kanban-shell">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div className="text-sm text-gray-500">
+            {cards.length === 0
+              ? 'По текущим фильтрам карточки не найдены'
+              : `На доске ${cards.length} карточек`}
+          </div>
+          {hiddenColumnsCount > 0 && (
+            <button
+              type="button"
+              className="btn-ghost text-sm px-3 py-1.5"
+              onClick={() => setShowEmptyColumns((value) => !value)}
+            >
+              {showEmptyColumns ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              {showEmptyColumns ? 'Скрыть пустые колонки' : `Показать пустые колонки (${hiddenColumnsCount})`}
+            </button>
+          )}
+        </div>
+
+        {cards.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 px-6 py-16 text-center">
+            <div className="text-sm font-medium text-slate-700">Нет карточек для отображения</div>
+            <div className="text-sm text-gray-500 mt-1">
+              Попробуйте изменить фильтры или переключить период.
+            </div>
+          </div>
+        ) : (
+        <div className="kanban-track">
+        {visibleColumns.map((col) => {
+          const colCards = col.cards;
           const isOver = dragOverCol === col.status;
 
           return (
             <div
               key={col.status}
-              className={`flex-1 min-w-[180px] rounded-lg border-2 flex flex-col transition-all ${col.bodyCls} ${isOver ? 'ring-2 ring-primary/50 scale-[1.01]' : ''}`}
+              className={`kanban-column border-2 transition-all ${col.bodyCls} ${isOver ? 'ring-2 ring-primary/50 scale-[1.01]' : ''}`}
               onDragOver={(e) => handleDragOver(e, col.status)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, col.status)}
             >
-              <div className={`px-3 py-2 rounded-t-md border-b-2 flex items-center justify-between ${col.headerCls}`}>
+              <div className={`kanban-column-header border-b-2 ${col.headerCls}`}>
                 <span className="font-semibold text-sm text-gray-700">{col.label}</span>
                 <span className="text-xs bg-white/70 rounded-full px-2 py-0.5 text-gray-500 font-medium">
                   {colCards.length}
                 </span>
               </div>
 
-              <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[calc(100vh-320px)]">
+              <div className="kanban-column-body">
                 {colCards.map((card) => {
                   const ind = getDueDateIndicator(card.dueDate, card.status);
+                  const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
                   return (
                     <div
                       key={card.id}
                       draggable
                       onDragStart={(e) => handleDragStart(e, card.id, card.status)}
                       onDragEnd={handleDragEnd}
-                      onClick={() => router.push(`/cards/${card.publicId}`)}
-                      className={`bg-white rounded-md p-3 shadow-sm border cursor-grab active:cursor-grabbing hover:shadow-md transition-all select-none ${
+                      onClick={() => handleCardClick(card.publicId)}
+                      className={`kanban-card ${
                         dragCardId === card.id ? 'opacity-40 scale-95' : ''
                       } ${
                         ind === 'red' ? 'border-l-4 border-l-red-400 border-t border-r border-b border-gray-200' :
@@ -194,6 +259,14 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                           </span>
                         )}
                       </div>
+                      {hasNoSourceMaterials && (
+                        <div className="mb-2">
+                          <span className="attention-chip">
+                            <AlertTriangle className="w-3 h-3" />
+                            Информационная
+                          </span>
+                        </div>
+                      )}
                       <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug">
                         {card.dataSource?.name || '—'}
                         {card.extraTitle && (
@@ -223,6 +296,8 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
             </div>
           );
         })}
+        </div>
+        )}
       </div>
 
       {/* Status change dialog */}

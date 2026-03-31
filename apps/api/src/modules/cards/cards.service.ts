@@ -4,13 +4,21 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { CardStatus, CardPriority, HistoryAction, UserRole } from '@prisma/client';
+import {
+  CardStatus,
+  CardPriority,
+  HistoryAction,
+  NotificationType,
+  UserRole,
+  WatchSource,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { ChangeStatusDto } from './dto/change-status.dto';
 import { AssignDto } from './dto/assign.dto';
 import { CardsFilterDto } from './dto/cards-filter.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const CARD_INCLUDE = {
   dataSource: { select: { id: true, name: true } },
@@ -30,7 +38,10 @@ const CARD_INCLUDE = {
 
 @Injectable()
 export class CardsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async findAll(filter: CardsFilterDto, userId: string, userRole: UserRole) {
     const where: any = {};
@@ -96,7 +107,22 @@ export class CardsService {
     if (filter.assignedToMe) {
       where.AND = [
         ...(where.AND || []),
-        { executorId: userId },
+        {
+          OR: [
+            { executorId: userId },
+            {
+              AND: [
+                { reviewerId: userId },
+                { status: CardStatus.REVIEW },
+              ],
+            },
+            {
+              watchers: {
+                some: { userId, source: WatchSource.MANUAL },
+              },
+            },
+          ],
+        },
       ];
     }
 
@@ -238,8 +264,18 @@ export class CardsService {
         createdById: userId,
         status: CardStatus.NEW,
         parentId,
+        withoutResult: dto.withoutResult ?? false,
+        withoutSourceMaterials: dto.withoutSourceMaterials ?? false,
       },
       include: CARD_INCLUDE,
+    });
+
+    await this.prisma.cardWatcher.create({
+      data: {
+        cardId: card.id,
+        userId,
+        source: WatchSource.AUTO,
+      },
     });
 
     await this.logHistory(card.id, userId, HistoryAction.CREATED, null, {
@@ -247,12 +283,33 @@ export class CardsService {
       publicId,
     });
 
+    await this.notifications.createForCardEvent(card.id, {
+      type: NotificationType.ASSIGNMENT_CHANGED,
+      title: 'Новая карточка назначена',
+      message: `Карточка «${this.getCardDisplayName(card)}» назначена вам в работу.`,
+      actorId: userId,
+      includeWatchers: false,
+      extraUserIds: [card.executorId],
+      excludeUserIds: [userId],
+    });
+
+    await this.notifications.createForCardEvent(card.id, {
+      type: NotificationType.ASSIGNMENT_CHANGED,
+      title: 'Вы назначены проверяющим',
+      message: `Карточка «${this.getCardDisplayName(card)}» ожидает вашего участия как проверяющего.`,
+      actorId: userId,
+      includeWatchers: false,
+      extraUserIds: [card.reviewerId],
+      excludeUserIds: [userId],
+    });
+
     return card;
   }
 
-  async update(id: string, dto: UpdateCardDto, userId: string) {
+  async update(id: string, dto: UpdateCardDto, userId: string, userRole?: UserRole) {
     const card = await this.findById(id);
     this.assertNotLocked(card);
+    this.assertCanEditWorkingCard(card, userId, userRole);
 
     const updated = await this.prisma.card.update({
       where: { id: card.id },
@@ -264,6 +321,8 @@ export class CardsService {
         description: dto.description,
         priority: dto.priority,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        withoutResult: dto.withoutResult,
+        withoutSourceMaterials: dto.withoutSourceMaterials,
         lastChangedById: userId,
       },
       include: CARD_INCLUDE,
@@ -289,6 +348,7 @@ export class CardsService {
 
     // Validate transition (skip for admin force)
     if (!isForce) {
+      this.assertCanChangeStatus(card, userId, userRole, newStatus);
       await this.validateStatusTransition(oldStatus, newStatus, card, dto);
     }
 
@@ -334,6 +394,15 @@ export class CardsService {
 
     await this.logHistory(card.id, userId, action, { status: oldStatus }, { status: newStatus, comment: dto.reason || dto.comment });
 
+    await this.notifications.createForCardEvent(card.id, {
+      type: newStatus === CardStatus.REVIEW ? NotificationType.REVIEW_REQUEST : NotificationType.STATUS_CHANGED,
+      title: this.getStatusNotificationTitle(newStatus),
+      message: this.getStatusNotificationMessage(card, newStatus, dto.comment || dto.reason),
+      actorId: userId,
+      extraUserIds: newStatus === CardStatus.REVIEW ? [card.reviewerId] : [],
+      excludeUserIds: [userId],
+    });
+
     // If returned with errors — add review comment
     if (action === HistoryAction.RETURNED_WITH_ERRORS && dto.comment) {
       const currentVersion = await this.prisma.resultVersion.findFirst({
@@ -370,11 +439,37 @@ export class CardsService {
         { reviewerId: dto.reviewerId });
     }
 
-    return this.prisma.card.update({
+    const updated = await this.prisma.card.update({
       where: { id: card.id },
       data: updateData,
       include: CARD_INCLUDE,
     });
+
+    if (dto.executorId !== undefined) {
+      await this.notifications.createForCardEvent(card.id, {
+        type: NotificationType.ASSIGNMENT_CHANGED,
+        title: 'Исполнитель обновлён',
+        message: `Для карточки «${this.getCardDisplayName(updated)}» обновлён исполнитель.`,
+        actorId: userId,
+        includeWatchers: true,
+        extraUserIds: [dto.executorId],
+        excludeUserIds: [userId],
+      });
+    }
+
+    if (dto.reviewerId !== undefined) {
+      await this.notifications.createForCardEvent(card.id, {
+        type: NotificationType.ASSIGNMENT_CHANGED,
+        title: 'Проверяющий обновлён',
+        message: `Для карточки «${this.getCardDisplayName(updated)}» обновлён проверяющий.`,
+        actorId: userId,
+        includeWatchers: true,
+        extraUserIds: [dto.reviewerId],
+        excludeUserIds: [userId],
+      });
+    }
+
+    return updated;
   }
 
   async hardDelete(id: string) {
@@ -392,7 +487,13 @@ export class CardsService {
       await this.prisma.cardWatcher.delete({ where: { id: existing.id } });
       return { watching: false };
     } else {
-      await this.prisma.cardWatcher.create({ data: { cardId: card.id, userId } });
+      await this.prisma.cardWatcher.create({
+        data: {
+          cardId: card.id,
+          userId,
+          source: WatchSource.MANUAL,
+        },
+      });
       return { watching: true };
     }
   }
@@ -444,6 +545,51 @@ export class CardsService {
     }
   }
 
+  private assertCanEditWorkingCard(card: any, userId: string, userRole?: UserRole) {
+    if (userRole === UserRole.ADMIN) {
+      return;
+    }
+
+    if (card.status !== CardStatus.IN_PROGRESS || card.executorId !== userId) {
+      throw new ForbiddenException(
+        'Изменения в карточке доступны только исполнителю, пока карточка находится в статусе "В работе"',
+      );
+    }
+  }
+
+  private assertCanChangeStatus(
+    card: any,
+    userId: string,
+    userRole: UserRole | undefined,
+    nextStatus: CardStatus,
+  ) {
+    if (userRole === UserRole.ADMIN) {
+      return;
+    }
+
+    if (nextStatus === CardStatus.CANCELLED) {
+      return;
+    }
+
+    const currentStatus = card.status as CardStatus;
+    const isExecutor = card.executorId === userId;
+    const isReviewer = card.reviewerId === userId;
+
+    const allowed =
+      (currentStatus === CardStatus.NEW && nextStatus === CardStatus.IN_PROGRESS && isExecutor) ||
+      (currentStatus === CardStatus.IN_PROGRESS && nextStatus === CardStatus.REVIEW && isExecutor) ||
+      (currentStatus === CardStatus.REVIEW &&
+        (nextStatus === CardStatus.DONE ||
+          nextStatus === CardStatus.IN_PROGRESS) &&
+        isReviewer);
+
+    if (!allowed) {
+      throw new ForbiddenException(
+        'Недостаточно прав для смены статуса на текущем этапе карточки',
+      );
+    }
+  }
+
   private async validateStatusTransition(
     from: CardStatus,
     to: CardStatus,
@@ -465,7 +611,12 @@ export class CardsService {
     }
 
     if (to === CardStatus.REVIEW) {
-      if (!card._count || card._count.resultVersions === 0) {
+      if (!card.reviewerId) {
+        throw new BadRequestException(
+          'Невозможно отправить на проверку без назначенного проверяющего',
+        );
+      }
+      if (!card.withoutResult && (!card._count || card._count.resultVersions === 0)) {
         throw new BadRequestException(
           'Невозможно отправить на проверку без результата. Сначала загрузите результат.',
         );
@@ -543,13 +694,54 @@ export class CardsService {
   private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc') {
     const order = sortOrder;
     switch (sortBy) {
+      case 'publicId': return [{ publicId: order }];
+      case 'dataSource': return [{ dataSource: { name: order } }, { extraTitle: order }];
       case 'priority': return [{ priority: order }];
       case 'dueDate': return [{ dueDate: order }];
       case 'status': return [{ status: order }];
+      case 'executor': return [{ executor: { fullName: order } }];
+      case 'reviewer': return [{ reviewer: { fullName: order } }];
       case 'createdAt': return [{ createdAt: order }];
       case 'updatedAt': return [{ updatedAt: order }];
       case 'year': return [{ year: order }, { month: order }];
       default: return [{ updatedAt: 'desc' as const }];
+    }
+  }
+
+  private getCardDisplayName(card: any) {
+    return card.extraTitle || card.dataSource?.name || card.publicId;
+  }
+
+  private getStatusNotificationTitle(status: CardStatus) {
+    switch (status) {
+      case CardStatus.IN_PROGRESS:
+        return 'Карточка взята в работу';
+      case CardStatus.REVIEW:
+        return 'Карточка отправлена на проверку';
+      case CardStatus.DONE:
+        return 'Карточка подтверждена';
+      case CardStatus.CANCELLED:
+        return 'Карточка отменена';
+      default:
+        return 'Статус карточки изменён';
+    }
+  }
+
+  private getStatusNotificationMessage(card: any, status: CardStatus, comment?: string) {
+    const baseName = this.getCardDisplayName(card);
+    const commentSuffix = comment ? ` Комментарий: ${comment}` : '';
+
+    switch (status) {
+      case CardStatus.IN_PROGRESS:
+        return `Карточка «${baseName}» переведена в статус «В работе».${commentSuffix}`;
+      case CardStatus.REVIEW:
+        return `Карточка «${baseName}» переведена в статус «На проверке».${commentSuffix}`;
+      case CardStatus.DONE:
+        return `Карточка «${baseName}» подтверждена и завершена.${commentSuffix}`;
+      case CardStatus.CANCELLED:
+        return `Карточка «${baseName}» была отменена.${commentSuffix}`;
+      default:
+        return `Статус карточки «${baseName}» изменён.${commentSuffix}`;
     }
   }
 }

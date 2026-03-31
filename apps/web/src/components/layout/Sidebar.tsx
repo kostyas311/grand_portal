@@ -1,19 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2,
+  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2, MessageSquareQuote, Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { authApi } from '@/lib/api';
 import { toast } from 'sonner';
+import { BrandBlock } from '@/components/shared/BrandBlock';
 
 const managerNavItems = [
   { href: '/dashboard', label: 'Мой кабинет', icon: LayoutDashboard },
   { href: '/cards', label: 'Все карточки', icon: FileText },
+  { href: '/requests', label: 'Обращения', icon: MessageSquareQuote },
   { href: '/', label: 'Готовые проекты', icon: CheckCircle },
   { href: '/sources', label: 'Источники НСД', icon: BookOpen },
   { href: '/reports', label: 'Отчёты', icon: BarChart2 },
@@ -21,10 +22,12 @@ const managerNavItems = [
 
 const userNavItems = [
   { href: '/dashboard', label: 'Мой кабинет', icon: LayoutDashboard },
+  { href: '/requests', label: 'Обращения', icon: MessageSquareQuote },
 ];
 
 const adminItems = [
   { href: '/admin/users', label: 'Пользователи', icon: Users },
+  { href: '/admin/notifications', label: 'Email-уведомления', icon: Mail },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -55,15 +58,7 @@ export function Sidebar() {
     <aside className="sidebar">
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/10">
-        <Link href="/" className="flex items-center gap-3 no-underline">
-          <div className="w-9 h-9 flex items-center justify-center flex-shrink-0">
-            <Image src="/logo.png" alt="Логотип" width={36} height={36} className="object-contain" />
-          </div>
-          <div>
-            <div className="text-white font-semibold text-sm leading-tight">Управление сметно-нормативной документацией</div>
-            <div className="text-blue-200 text-xs leading-tight">Документооборот</div>
-          </div>
-        </Link>
+        <BrandBlock variant="sidebar" />
       </div>
 
       {/* Navigation */}

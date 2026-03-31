@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { CardStatus, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   private async resolveCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
@@ -26,10 +31,23 @@ export class CommentsService {
     });
   }
 
-  async create(cardId: string, dto: CreateCommentDto, userId: string) {
+  async create(cardId: string, dto: CreateCommentDto, userId: string, userRole?: UserRole) {
     const card = await this.resolveCard(cardId);
 
-    return this.prisma.reviewComment.create({
+    if (userRole !== UserRole.ADMIN) {
+      const canCommentInformationalCard =
+        card.withoutSourceMaterials &&
+        !card.isLocked &&
+        (card.createdById === userId || card.executorId === userId || card.reviewerId === userId);
+
+      if (!canCommentInformationalCard && (card.status !== CardStatus.REVIEW || card.reviewerId !== userId)) {
+        throw new ForbiddenException(
+          'Комментарии проверки может оставлять только проверяющий, пока карточка находится в статусе "На проверке"',
+        );
+      }
+    }
+
+    const comment = await this.prisma.reviewComment.create({
       data: {
         cardId: card.id,
         authorId: userId,
@@ -41,6 +59,16 @@ export class CommentsService {
         resultVersion: { select: { id: true, versionNumber: true } },
       },
     });
+
+    await this.notifications.createForCardEvent(card.id, {
+      type: NotificationType.COMMENT_ADDED,
+      title: 'Новый комментарий по карточке',
+      message: `По карточке «${card.extraTitle || card.publicId}» появился новый комментарий.${dto.text ? ` ${dto.text}` : ''}`,
+      actorId: userId,
+      excludeUserIds: [userId],
+    });
+
+    return comment;
   }
 
   async delete(cardId: string, commentId: string) {

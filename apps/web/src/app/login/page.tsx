@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
-import Image from 'next/image';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -11,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 import { authApi } from '@/lib/api/auth';
 import { setAccessToken } from '@/lib/api/client';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { BrandBlock } from '@/components/shared/BrandBlock';
 
 const schema = z.object({
   email: z.string().email('Введите корректный email'),
@@ -23,6 +23,11 @@ export default function LoginPage() {
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -47,12 +52,8 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#eff4f8] flex flex-col items-center justify-center px-4">
       {/* Logo */}
-      <div className="mb-8 flex flex-col items-center">
-        <div className="flex items-center gap-3 mb-2">
-          <Image src="/logo.png" alt="Логотип" width={48} height={48} className="object-contain" />
-          <span className="text-2xl font-bold text-[#1e3a5f]">Управление сметно-нормативной документацией</span>
-        </div>
-        <p className="text-sm text-gray-500">Внутренний портал документооборота</p>
+      <div className="mb-8 w-full max-w-xl">
+        <BrandBlock variant="auth" />
       </div>
 
       {/* Login card */}
@@ -60,50 +61,70 @@ export default function LoginPage() {
         <div className="px-8 py-8">
           <h1 className="text-xl font-semibold text-gray-800 mb-6">Вход в систему</h1>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="label">Email</label>
-              <input
-                {...register('email')}
-                type="email"
-                className={`input ${errors.email ? 'input-error' : ''}`}
-                placeholder="user@company.ru"
-                autoComplete="email"
-              />
-              {errors.email && (
-                <p className="error-message">{errors.email.message}</p>
-              )}
+          {!isHydrated ? (
+            <div className="space-y-4">
+              <div>
+                <label className="label">Email</label>
+                <div className="input bg-gray-50 text-gray-400">Загрузка формы...</div>
+              </div>
+              <div>
+                <label className="label">Пароль</label>
+                <div className="input bg-gray-50 text-gray-400">Загрузка формы...</div>
+              </div>
+              <button
+                type="button"
+                disabled
+                className="btn-primary w-full justify-center mt-2 opacity-60 cursor-not-allowed"
+              >
+                Подготовка...
+              </button>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <div>
+                <label className="label">Email</label>
+                <input
+                  {...register('email')}
+                  type="email"
+                  className={`input ${errors.email ? 'input-error' : ''}`}
+                  placeholder="user@company.ru"
+                  autoComplete="email"
+                />
+                {errors.email && (
+                  <p className="error-message">{errors.email.message}</p>
+                )}
+              </div>
 
-            <div>
-              <label className="label">Пароль</label>
-              <input
-                {...register('password')}
-                type="password"
-                className={`input ${errors.password ? 'input-error' : ''}`}
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-              {errors.password && (
-                <p className="error-message">{errors.password.message}</p>
-              )}
-            </div>
+              <div>
+                <label className="label">Пароль</label>
+                <input
+                  {...register('password')}
+                  type="password"
+                  className={`input ${errors.password ? 'input-error' : ''}`}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+                {errors.password && (
+                  <p className="error-message">{errors.password.message}</p>
+                )}
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full justify-center mt-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Выполняется вход...
-                </>
-              ) : (
-                'Войти'
-              )}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full justify-center mt-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Выполняется вход...
+                  </>
+                ) : (
+                  'Войти'
+                )}
+              </button>
+            </form>
+          )}
         </div>
       </div>
 

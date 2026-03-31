@@ -18,9 +18,11 @@ const STATUSES = [
 
 export default function ReportsPage() {
   const currentDate = new Date();
+  const defaultMonth = String(currentDate.getMonth() + 1);
+  const defaultYear = String(currentDate.getFullYear());
   const [filters, setFilters] = useState({
-    month: '',
-    year: String(currentDate.getFullYear()),
+    month: defaultMonth,
+    year: defaultYear,
     dueDateFrom: '',
     dueDateTo: '',
   });
@@ -45,7 +47,7 @@ export default function ReportsPage() {
   }));
 
   const buildCardsLink = (status: string) => {
-    const params = new URLSearchParams({ status });
+    const params = new URLSearchParams({ status, view: 'list' });
     if (filters.month) params.set('month', filters.month);
     if (filters.year) params.set('year', filters.year);
     if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom);
@@ -107,10 +109,10 @@ export default function ReportsPage() {
                 />
               </div>
 
-              {(filters.month || filters.dueDateFrom || filters.dueDateTo) && (
+              {(filters.month !== defaultMonth || filters.year !== defaultYear || filters.dueDateFrom || filters.dueDateTo) && (
                 <button
                   className="btn-secondary text-sm"
-                  onClick={() => setFilters({ month: '', year: String(currentDate.getFullYear()), dueDateFrom: '', dueDateTo: '' })}
+                  onClick={() => setFilters({ month: defaultMonth, year: defaultYear, dueDateFrom: '', dueDateTo: '' })}
                 >
                   Сбросить
                 </button>

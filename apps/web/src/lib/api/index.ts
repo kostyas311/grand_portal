@@ -1,6 +1,9 @@
 export { apiClient, setAccessToken, getAccessToken } from './client';
 export { authApi } from './auth';
 export { cardsApi } from './cards';
+export { notificationsApi } from './notifications';
+export { adminRequestsApi } from './adminRequests';
+export { notificationEmailSettingsApi } from './notificationEmailSettings';
 
 import { apiClient } from './client';
 

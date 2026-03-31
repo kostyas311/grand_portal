@@ -11,6 +11,9 @@ import { ResultsModule } from './modules/results/results.module';
 import { HistoryModule } from './modules/history/history.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { FilesModule } from './modules/files/files.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AdminRequestsModule } from './modules/admin-requests/admin-requests.module';
+import { NotificationEmailSettingsModule } from './modules/notification-email-settings/notification-email-settings.module';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { FilesModule } from './modules/files/files.module';
     HistoryModule,
     CommentsModule,
     FilesModule,
+    NotificationEmailSettingsModule,
+    NotificationsModule,
+    AdminRequestsModule,
   ],
 })
 export class AppModule {}

@@ -16,16 +16,34 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const currentYear = new Date().getFullYear();
+
   return (
     <html lang="ru">
       <body className={inter.className}>
         <Providers>
           {children}
+          <div className="app-copyright">
+            {`Группа компаний МГК "ГРАНД" © ${currentYear}`}
+          </div>
           <Toaster
             position="top-right"
-            richColors
             closeButton
-            duration={4000}
+            expand
+            visibleToasts={4}
+            duration={5000}
+            toastOptions={{
+              classNames: {
+                toast: 'app-toast',
+                title: 'app-toast-title',
+                description: 'app-toast-description',
+                closeButton: 'app-toast-close',
+                success: 'app-toast-success',
+                error: 'app-toast-error',
+                warning: 'app-toast-warning',
+                info: 'app-toast-info',
+              },
+            }}
           />
         </Providers>
       </body>

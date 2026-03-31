@@ -2,13 +2,14 @@
 
 import { useState, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { ReadonlyURLSearchParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, LayoutList, LayoutGrid } from 'lucide-react';
+import { Plus, LayoutList, LayoutGrid, ArrowUpDown, ChevronUp, ChevronDown, AlertTriangle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CardStatusBadge } from '@/components/cards/CardStatusBadge';
 import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { KanbanBoard } from '@/components/cards/KanbanBoard';
+import { CardFiltersPanel } from '@/components/cards/CardFiltersPanel';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { cardsApi, dataSourcesApi } from '@/lib/api';
 import { formatDate, getMonthName, getDueDateIndicator } from '@/lib/utils';
@@ -17,11 +18,66 @@ import { useAuthStore } from '@/lib/store/auth.store';
 
 type ViewMode = 'kanban' | 'list';
 
+type CardFiltersState = {
+  search: string;
+  status: string;
+  dataSourceId: string;
+  month: string;
+  year: string;
+  dueDateFrom: string;
+  dueDateTo: string;
+  priority: string;
+  isArchived?: boolean;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+  page: number;
+};
+
+function getViewModeFromSearchParams(searchParams: ReadonlyURLSearchParams): ViewMode {
+  return searchParams.get('view') === 'list' ||
+    !!searchParams.get('status') ||
+    !!searchParams.get('month') ||
+    !!searchParams.get('year') ||
+    !!searchParams.get('dueDateFrom') ||
+    !!searchParams.get('dueDateTo')
+      ? 'list'
+      : 'kanban';
+}
+
+function getFiltersFromSearchParams(
+  searchParams: ReadonlyURLSearchParams,
+  currentDate: Date,
+): CardFiltersState {
+  const isArchivedParam = searchParams.get('isArchived');
+
+  return {
+    search: searchParams.get('search') || '',
+    status: searchParams.get('status') || '',
+    dataSourceId: searchParams.get('dataSourceId') || '',
+    month: searchParams.get('month') || String(currentDate.getMonth() + 1),
+    year: searchParams.get('year') || String(currentDate.getFullYear()),
+    dueDateFrom: searchParams.get('dueDateFrom') || '',
+    dueDateTo: searchParams.get('dueDateTo') || '',
+    priority: searchParams.get('priority') || '',
+    isArchived: isArchivedParam === 'true'
+      ? true
+      : isArchivedParam === 'false'
+      ? false
+      : searchParams.get('status') === 'CANCELLED'
+      ? true
+      : undefined,
+    sortBy: searchParams.get('sortBy') || 'updatedAt',
+    sortOrder: searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
+    page: 1,
+  };
+}
+
 function AllCardsContent() {
   const currentDate = new Date();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
+  const searchParamsKey = searchParams.toString();
 
   // Redirect USER role to dashboard
   useEffect(() => {
@@ -30,28 +86,48 @@ function AllCardsContent() {
     }
   }, [user, router]);
 
-  const [viewMode, setViewMode] = useState<ViewMode>('kanban');
-  const [filters, setFilters] = useState({
-    search: searchParams.get('search') || '',
-    status: searchParams.get('status') || '',
-    dataSourceId: searchParams.get('dataSourceId') || '',
-    month: searchParams.get('month') || '',
-    year: searchParams.get('year') || '',
-    priority: searchParams.get('priority') || '',
-    isArchived: searchParams.get('status') === 'CANCELLED',
-    page: 1,
-  });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => getViewModeFromSearchParams(searchParams));
+  const [filters, setFilters] = useState<CardFiltersState>(() => getFiltersFromSearchParams(searchParams, currentDate));
+
+  useEffect(() => {
+    setViewMode(getViewModeFromSearchParams(searchParams));
+    setFilters(getFiltersFromSearchParams(searchParams, currentDate));
+  }, [searchParams, searchParamsKey]);
 
   const updateFilter = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
   };
 
+  const toggleSort = (sortBy: string) => {
+    setFilters((prev) => ({
+      ...prev,
+      sortBy,
+      sortOrder: prev.sortBy === sortBy && prev.sortOrder === 'asc' ? 'desc' : 'asc',
+      page: 1,
+    }));
+  };
+
   const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
+  const defaultMonth = String(currentDate.getMonth() + 1);
+  const defaultYear = String(currentDate.getFullYear());
 
   // Kanban: fetch all without pagination
   const kanbanQuery = useQuery({
-    queryKey: ['all-cards-kanban'],
-    queryFn: () => cardsApi.getAll({ limit: 200 }),
+    queryKey: ['all-cards-kanban', filters],
+    queryFn: () => cardsApi.getAll({
+      search: filters.search || undefined,
+      status: filters.status || undefined,
+      dataSourceId: filters.dataSourceId || undefined,
+      month: filters.month ? Number(filters.month) : undefined,
+      year: filters.year ? Number(filters.year) : undefined,
+      dueDateFrom: filters.dueDateFrom || undefined,
+      dueDateTo: filters.dueDateTo || undefined,
+      priority: filters.priority || undefined,
+      isArchived: filters.isArchived,
+      sortBy: filters.sortBy,
+      sortOrder: filters.sortOrder,
+      limit: 200,
+    }),
     enabled: viewMode === 'kanban',
   });
 
@@ -65,8 +141,12 @@ function AllCardsContent() {
         dataSourceId: filters.dataSourceId || undefined,
         month: filters.month ? Number(filters.month) : undefined,
         year: filters.year ? Number(filters.year) : undefined,
+        dueDateFrom: filters.dueDateFrom || undefined,
+        dueDateTo: filters.dueDateTo || undefined,
         priority: filters.priority || undefined,
         isArchived: filters.isArchived,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
         page: filters.page,
         limit: 20,
       }),
@@ -80,12 +160,46 @@ function AllCardsContent() {
 
   const data = listQuery.data;
 
+  const renderSortHeader = (label: string, sortBy: string) => {
+    const isActive = filters.sortBy === sortBy;
+    return (
+      <button
+        type="button"
+        className={`inline-flex items-center gap-1 transition-colors ${isActive ? 'text-primary' : 'text-gray-500 hover:text-gray-700'}`}
+        onClick={() => toggleSort(sortBy)}
+      >
+        <span>{label}</span>
+        {isActive ? (
+          filters.sortOrder === 'asc' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
+        )}
+      </button>
+    );
+  };
+
   if (user?.role === 'USER') return null;
+
+  const resetFilters = () => {
+    setFilters((prev) => ({
+      ...prev,
+      search: '',
+      status: '',
+      dataSourceId: '',
+      month: defaultMonth,
+      year: defaultYear,
+      dueDateFrom: '',
+      dueDateTo: '',
+      priority: '',
+      isArchived: undefined,
+      page: 1,
+    }));
+  };
 
   return (
     <AppLayout>
       {/* Header — ограниченная ширина */}
-      <div className="page-container">
+      <div className="page-container-wide">
         <div className="page-header">
           <h1 className="section-title">Все карточки</h1>
           <div className="flex items-center gap-3">
@@ -111,21 +225,35 @@ function AllCardsContent() {
             </Link>
           </div>
         </div>
+
+        <CardFiltersPanel
+          filters={filters}
+          years={years}
+          defaultMonth={defaultMonth}
+          defaultYear={defaultYear}
+          sources={sources}
+          showDataSource
+          showDueDateRange
+          showArchive
+          searchPlaceholder="Поиск по карточкам..."
+          onChange={updateFilter}
+          onReset={resetFilters}
+        />
       </div>
 
       {/* Kanban view — полная ширина без ограничения max-w */}
       {viewMode === 'kanban' && (
-        <div className="px-6 pb-6">
+        <div className="page-container-wide pt-0">
           {kanbanQuery.isLoading ? (
-            <div className="flex gap-3">
+            <div className="flex gap-3 overflow-hidden">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex-1 min-w-[180px] h-64 skeleton rounded-lg" />
+                <div key={i} className="w-[300px] h-[420px] skeleton rounded-xl" />
               ))}
             </div>
           ) : (
             <KanbanBoard
               cards={kanbanQuery.data?.items || []}
-              queryKey={['all-cards-kanban']}
+              queryKey={['all-cards-kanban', filters]}
             />
           )}
         </div>
@@ -133,65 +261,17 @@ function AllCardsContent() {
 
       {/* List view */}
       {viewMode === 'list' && (
-        <div className="page-container">
+        <div className="page-container-wide">
           <>
-            {/* Filters */}
-            <div className="card mb-4">
-              <div className="card-body">
-                <div className="filter-bar">
-                  <div className="relative flex-1 min-w-48">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Поиск..."
-                      className="input pl-9"
-                      value={filters.search}
-                      onChange={(e) => updateFilter('search', e.target.value)}
-                    />
-                  </div>
-                  <select className="input w-auto" value={filters.status} onChange={(e) => updateFilter('status', e.target.value)}>
-                    <option value="">Все статусы</option>
-                    {['NEW', 'IN_PROGRESS', 'REVIEW', 'DONE', 'CANCELLED'].map((s) => (
-                      <option key={s} value={s}>
-                        {{ NEW: 'Новое', IN_PROGRESS: 'В работе', REVIEW: 'На проверке', DONE: 'Готово', CANCELLED: 'Отменено' }[s]}
-                      </option>
-                    ))}
-                  </select>
-                  <select className="input w-auto" value={filters.dataSourceId} onChange={(e) => updateFilter('dataSourceId', e.target.value)}>
-                    <option value="">Все источники</option>
-                    {sources?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  <select className="input w-auto" value={filters.month} onChange={(e) => updateFilter('month', e.target.value)}>
-                    <option value="">Все месяцы</option>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>
-                    ))}
-                  </select>
-                  <select className="input w-auto" value={filters.year} onChange={(e) => updateFilter('year', e.target.value)}>
-                    <option value="">Все годы</option>
-                    {years.map((y) => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                  <select className="input w-auto" value={filters.priority} onChange={(e) => updateFilter('priority', e.target.value)}>
-                    <option value="">Все приоритеты</option>
-                    <option value="OPTIONAL">Желательно</option>
-                    <option value="NORMAL">В рабочем режиме</option>
-                    <option value="URGENT">Срочно</option>
-                    <option value="CRITICAL">Очень срочно</option>
-                  </select>
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={filters.isArchived}
-                      onChange={(e) => updateFilter('isArchived', e.target.checked)}
-                      className="rounded border-gray-300"
-                    />
-                    Показать архив
-                  </label>
+            <div className="list-surface">
+              <div className="list-surface-header">
+                <div>
+                  <h2 className="list-surface-title">Результаты фильтрации карточек</h2>
+                  <p className="list-surface-subtitle">
+                    {data?.total ?? 0} карточек в текущей выборке
+                  </p>
                 </div>
               </div>
-            </div>
-
-            <div className="card">
               {listQuery.isLoading ? (
                 <div className="card-body space-y-2">
                   {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton h-10" />)}
@@ -204,24 +284,25 @@ function AllCardsContent() {
                   action={<Link href="/cards/new" className="btn-primary"><Plus className="w-4 h-4" />Создать карточку</Link>}
                 />
               ) : (
-                <div className="overflow-x-auto">
+                <div className="table-shell">
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
-                        <th>Источник / Название</th>
-                        <th>Период</th>
-                        <th>Статус</th>
-                        <th>Приоритет</th>
-                        <th>Срок</th>
-                        <th>Исполнитель</th>
-                        <th>Проверяющий</th>
-                        <th>Обновлено</th>
+                        <th>{renderSortHeader('ID', 'publicId')}</th>
+                        <th>{renderSortHeader('Источник / Название', 'dataSource')}</th>
+                        <th>{renderSortHeader('Период', 'year')}</th>
+                        <th>{renderSortHeader('Статус', 'status')}</th>
+                        <th>{renderSortHeader('Приоритет', 'priority')}</th>
+                        <th>{renderSortHeader('Срок', 'dueDate')}</th>
+                        <th>{renderSortHeader('Исполнитель', 'executor')}</th>
+                        <th>{renderSortHeader('Проверяющий', 'reviewer')}</th>
+                        <th>{renderSortHeader('Обновлено', 'updatedAt')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {data.items.map((card: any) => {
                         const indicator = getDueDateIndicator(card.dueDate, card.status);
+                        const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
                         const rowBorder =
                           indicator === 'red' ? 'border-l-4 border-l-red-400' :
                           indicator === 'orange' ? 'border-l-4 border-l-orange-400' :
@@ -237,7 +318,15 @@ function AllCardsContent() {
                             </td>
                             <td>
                               <div>
-                                <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                                  {hasNoSourceMaterials && (
+                                    <span className="attention-chip">
+                                      <AlertTriangle className="w-3 h-3" />
+                                      Информационная
+                                    </span>
+                                  )}
+                                </div>
                                 {card.extraTitle && <div className="text-xs text-gray-400">{card.extraTitle}</div>}
                               </div>
                             </td>

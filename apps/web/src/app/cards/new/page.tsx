@@ -26,6 +26,8 @@ const schema = z.object({
   executorId: z.string().min(1, 'Выберите исполнителя'),
   reviewerId: z.string().optional(),
   parentId: z.string().optional(),
+  withoutResult: z.boolean().default(false),
+  withoutSourceMaterials: z.boolean().default(false),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -87,14 +89,26 @@ function NewCardForm() {
       dueDate: getDueDateByPriority('NORMAL'),
       reviewerId: user?.id ?? '',
       parentId: parentIdFromUrl,
+      withoutResult: false,
+      withoutSourceMaterials: false,
     },
   });
+
+  const withoutResult = watch('withoutResult');
+  const withoutSourceMaterials = watch('withoutSourceMaterials');
 
   useEffect(() => {
     if (parentCard?.dataSourceId) {
       setValue('dataSourceId', parentCard.dataSourceId);
     }
-  }, [parentCard?.dataSourceId]);
+  }, [parentCard?.dataSourceId, setValue]);
+
+  useEffect(() => {
+    if (withoutSourceMaterials) {
+      setAddMode(null);
+      setMaterialsError(false);
+    }
+  }, [withoutSourceMaterials]);
 
   const handlePriorityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const p = e.target.value;
@@ -116,7 +130,10 @@ function NewCardForm() {
   };
 
   const onSubmit = async (data: FormData) => {
-    if (materials.length === 0) { setMaterialsError(true); return; }
+    if (!data.withoutSourceMaterials && materials.length === 0) {
+      setMaterialsError(true);
+      return;
+    }
     setSubmitting(true);
     try {
       const card = await cardsApi.create({ ...data, parentId: parentIdFromUrl });
@@ -152,31 +169,56 @@ function NewCardForm() {
 
   return (
     <AppLayout>
-      <div className="page-container max-w-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Link href={parentIdFromUrl ? `/cards/${parentIdFromUrl}` : '/dashboard'} className="btn-ghost">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="section-title">Создание карточки</h1>
-            {parentIdFromUrl && (
-              <p className="text-sm text-gray-500 mt-0.5">
-                Дочерняя карточка для{' '}
-                <Link href={`/cards/${parentCard?.publicId ?? parentIdFromUrl}`} className="text-primary hover:underline">
-                  {parentCard
-                    ? `${parentCard.publicId} — ${parentCard.dataSource?.name ?? parentCard.extraTitle ?? '—'}`
-                    : '...'}
+      <div className="page-container max-w-4xl">
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div>
+                <div className="page-kicker">Карточки</div>
+                <h1 className="section-title mt-2">Создание карточки</h1>
+                <p className="page-subtitle">
+                  Новая карточка создаётся по единому шаблону: основные данные, исходные материалы,
+                  параметры исполнения и назначения.
+                </p>
+                <div className="page-chip-row">
+                  <span className="page-chip">{getMonthName(currentMonth)} {currentYear}</span>
+                  <span className="page-chip">Стартовый статус: Новое</span>
+                  <span className="page-chip">
+                    {withoutSourceMaterials ? 'Без исходных данных' : 'Исходные данные обязательны'}
+                  </span>
+                  <span className="page-chip">
+                    {withoutResult ? 'Без результата' : 'Результат потребуется на проверке'}
+                  </span>
+                </div>
+                {parentIdFromUrl && (
+                  <p className="text-sm text-gray-500 mt-4">
+                    Дочерняя карточка для{' '}
+                    <Link href={`/cards/${parentCard?.publicId ?? parentIdFromUrl}`} className="text-primary hover:underline">
+                      {parentCard
+                        ? `${parentCard.publicId} — ${parentCard.dataSource?.name ?? parentCard.extraTitle ?? '—'}`
+                        : '...'}
+                    </Link>
+                  </p>
+                )}
+              </div>
+              <div className="flex items-start">
+                <Link href={parentIdFromUrl ? `/cards/${parentIdFromUrl}` : '/dashboard'} className="btn-ghost">
+                  <ArrowLeft className="w-4 h-4" />
+                  Назад
                 </Link>
-              </p>
-            )}
+              </div>
+            </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {/* Основные данные */}
-          <div className="card">
-            <div className="card-header">
-              <h2 className="font-medium text-gray-700">Основные данные</h2>
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div>
+                <h2 className="section-surface-title">Основные данные</h2>
+                <p className="section-surface-subtitle">Источник, название и краткое описание карточки.</p>
+              </div>
             </div>
             <div className="card-body space-y-4">
               <div>
@@ -234,33 +276,81 @@ function NewCardForm() {
             </div>
           </div>
 
-          {/* Исходные материалы */}
-          <div className={`card ${materialsError ? 'ring-1 ring-red-400' : ''}`}>
-            <div className="card-header">
-              <div className="flex items-center gap-2">
-                <Paperclip className="w-4 h-4 text-gray-500" />
-                <h2 className="font-medium text-gray-700">
-                  Исходные материалы
-                  <span className="text-red-500 ml-1">*</span>
-                </h2>
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div>
+                <h2 className="section-surface-title">Особенности карточки</h2>
+                <p className="section-surface-subtitle">
+                  Здесь можно заранее отметить карточки, для которых не нужны исходные данные
+                  или итоговый результат.
+                </p>
               </div>
-              {addMode === null && (
-                <div className="flex gap-2">
-                  <button type="button" className="btn-secondary text-sm" onClick={() => setAddMode('file')}>
-                    <FileText className="w-4 h-4" />
-                    Файл
-                  </button>
-                  <button type="button" className="btn-secondary text-sm" onClick={() => setAddMode('link')}>
-                    <LinkIcon className="w-4 h-4" />
-                    Ссылка
-                  </button>
-                </div>
-              )}
             </div>
             <div className="card-body space-y-3">
-              {/* Форма добавления */}
+              <label className="feature-toggle">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  {...register('withoutSourceMaterials')}
+                />
+                <div>
+                  <div className="feature-toggle-title">Без исходных данных</div>
+                  <p className="feature-toggle-text">
+                    Карточку можно создать без прикреплённых материалов. Блок исходных данных будет скрыт по умолчанию.
+                  </p>
+                </div>
+              </label>
+
+              <label className="feature-toggle">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  {...register('withoutResult')}
+                />
+                <div>
+                  <div className="feature-toggle-title">Без результата</div>
+                  <p className="feature-toggle-text">
+                    При переводе карточки на проверку загрузка результата не будет обязательной.
+                  </p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Исходные материалы */}
+          {!withoutSourceMaterials && (
+          <div className={`section-surface ${materialsError ? 'ring-1 ring-red-400' : ''}`}>
+            <div className="section-surface-header">
+              <div className="flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-gray-500" />
+                <div>
+                  <h2 className="section-surface-title">
+                    Исходные материалы
+                    <span className="text-red-500 ml-1">*</span>
+                  </h2>
+                  <p className="section-surface-subtitle">
+                    Добавьте файлы или ссылки, с которыми будет работать исполнитель.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {addMode === null && (
+                  <>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => setAddMode('file')}>
+                      <FileText className="w-4 h-4" />
+                      Файл
+                    </button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => setAddMode('link')}>
+                      <LinkIcon className="w-4 h-4" />
+                      Ссылка
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="card-body space-y-3">
               {addMode !== null && (
-                <div className="border border-gray-200 rounded-sm p-4 space-y-3 bg-gray-50">
+                <div className="soft-note space-y-3">
                   <div className="text-sm font-medium text-gray-700">
                     {addMode === 'file' ? 'Добавить файл' : 'Добавить ссылку'}
                   </div>
@@ -285,25 +375,27 @@ function NewCardForm() {
                       />
                     </div>
                   )}
-                  <div>
-                    <label className="label">Название</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder={addMode === 'file' ? 'Оставьте пустым — будет имя файла' : 'Название ссылки'}
-                      value={matTitle}
-                      onChange={e => setMatTitle(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Описание</label>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="Необязательно"
-                      value={matDescription}
-                      onChange={e => setMatDescription(e.target.value)}
-                    />
+                  <div className="form-grid-2">
+                    <div>
+                      <label className="label">Название</label>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder={addMode === 'file' ? 'Оставьте пустым — будет имя файла' : 'Название ссылки'}
+                        value={matTitle}
+                        onChange={e => setMatTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Описание</label>
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="Необязательно"
+                        value={matDescription}
+                        onChange={e => setMatDescription(e.target.value)}
+                      />
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button type="button" className="btn-primary text-sm" onClick={handleAddMaterial}>
@@ -317,15 +409,16 @@ function NewCardForm() {
                 </div>
               )}
 
-              {/* Список добавленных */}
               {materials.length === 0 ? (
                 <p className={`text-sm ${materialsError ? 'text-red-500' : 'text-gray-400'}`}>
                   {materialsError ? 'Необходимо добавить хотя бы один исходный материал' : 'Материалы не добавлены'}
                 </p>
-              ) : (
+              ) : null}
+
+              {materials.length > 0 ? (
                 <div className="space-y-2">
                   {materials.map((mat, i) => (
-                    <div key={i} className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+                    <div key={i} className="soft-note flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {mat.kind === 'file'
                           ? <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />
@@ -353,17 +446,21 @@ function NewCardForm() {
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
+          )}
 
           {/* Параметры и назначения */}
-          <div className="card">
-            <div className="card-header">
-              <h2 className="font-medium text-gray-700">Параметры и назначения</h2>
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div>
+                <h2 className="section-surface-title">Параметры и назначения</h2>
+                <p className="section-surface-subtitle">Приоритет, срок исполнения и ответственные по карточке.</p>
+              </div>
             </div>
             <div className="card-body space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="form-grid-2">
                 <div>
                   <label className="label">Приоритет</label>
                   <select className="input" {...register('priority')} onChange={handlePriorityChange}>
@@ -379,7 +476,7 @@ function NewCardForm() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="form-grid-2">
                 <div>
                   <label className="label label-required">Исполнитель</label>
                   <select className={`input ${errors.executorId ? 'input-error' : ''}`} {...register('executorId')}>
@@ -403,7 +500,7 @@ function NewCardForm() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3">
+          <div className="form-actions">
             <Link href={parentIdFromUrl ? `/cards/${parentIdFromUrl}` : '/dashboard'} className="btn-secondary">Отмена</Link>
             <button type="submit" className="btn-primary" disabled={submitting}>
               {submitting ? (
