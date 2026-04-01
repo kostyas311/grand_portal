@@ -92,8 +92,12 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
               publicId: true,
               extraTitle: true,
               status: true,
-              month: true,
-              year: true,
+              sprint: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
               dataSource: { select: { name: true } },
             },
           },
@@ -309,6 +313,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           item.type,
           item.cardId || '',
           item.adminRequestId || '',
+          item.type === NotificationType.COMMENT_ADDED ? item.id : '',
         ].join(':');
 
         const existing = groups.get(key) || [];
@@ -393,6 +398,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         return `Новые исходные данные (${count})`;
       case NotificationType.RESULT_ADDED:
         return `Новые результаты (${count})`;
+      case NotificationType.CARD_UPDATED:
+        return `Обновлены данные карточки (${count})`;
       case NotificationType.REVIEW_REQUEST:
         return `Новые события проверки (${count})`;
       case NotificationType.ASSIGNMENT_CHANGED:
@@ -406,8 +413,14 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     switch (type) {
       case NotificationType.ADMIN_REQUEST_CREATED:
         return `Новые обращения (${count})`;
+      case NotificationType.ADMIN_REQUEST_NEEDS_INFO:
+        return `Обращения требуют уточнения (${count})`;
+      case NotificationType.ADMIN_REQUEST_REPLIED:
+        return `Поступили уточнения (${count})`;
       case NotificationType.ADMIN_REQUEST_COMPLETED:
         return `Обращения выполнены (${count})`;
+      case NotificationType.ADMIN_REQUEST_REJECTED:
+        return `Обращения отклонены (${count})`;
       default:
         return `Новые события по обращениям (${count})`;
     }
@@ -467,6 +480,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
               id: true,
               publicId: true,
               createdById: true,
+              executorId: true,
               reviewerId: true,
               extraTitle: true,
               dataSource: { select: { name: true } },
@@ -537,11 +551,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
         const isWatcher = card.watchers.some((watcher) => watcher.userId === notification.userId);
         const isCreator = card.createdById === notification.userId;
+        const isExecutor = card.executorId === notification.userId;
+        const isReviewer = card.reviewerId === notification.userId;
         const isReviewerForReview =
           notification.type === NotificationType.REVIEW_REQUEST &&
           card.reviewerId === notification.userId;
 
-        if (!isWatcher && !isCreator && !isReviewerForReview) {
+        if (!isWatcher && !isCreator && !isExecutor && !isReviewer && !isReviewerForReview) {
           continue;
         }
 

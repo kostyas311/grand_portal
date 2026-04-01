@@ -40,7 +40,7 @@ export default function LoginPage() {
       setAccessToken(accessToken);
       const user = await authApi.me();
       setAuth(user, accessToken);
-      router.push('/dashboard');
+      router.push(user.role === 'ADMIN' ? '/cards' : '/dashboard');
     } catch (err: any) {
       const message = err?.response?.data?.message || 'Ошибка входа';
       toast.error(message);

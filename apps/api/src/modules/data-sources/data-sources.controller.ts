@@ -30,6 +30,11 @@ export class DataSourcesController {
     return this.service.findById(id);
   }
 
+  @Get(':id/instructions')
+  getInstructions(@Param('id') id: string) {
+    return this.service.getInstructions(id);
+  }
+
   @Post()
   @ManagerOrAdminOnly()
   create(@Body() dto: CreateDataSourceDto, @CurrentUser() user: any) {
@@ -47,6 +52,28 @@ export class DataSourcesController {
   @HttpCode(HttpStatus.OK)
   toggleArchive(@Param('id') id: string) {
     return this.service.toggleArchive(id);
+  }
+
+  @Post(':id/instructions/:instructionId')
+  @ManagerOrAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  attachInstruction(
+    @Param('id') id: string,
+    @Param('instructionId') instructionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.attachInstruction(id, instructionId, user.id, user.role);
+  }
+
+  @Delete(':id/instructions/:instructionId')
+  @ManagerOrAdminOnly()
+  @HttpCode(HttpStatus.OK)
+  detachInstruction(
+    @Param('id') id: string,
+    @Param('instructionId') instructionId: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.service.detachInstruction(id, instructionId, user.role);
   }
 
   @Delete(':id')

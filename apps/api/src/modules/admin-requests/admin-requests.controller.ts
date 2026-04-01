@@ -19,6 +19,9 @@ import { AdminRequestsService } from './admin-requests.service';
 import { CreateAdminRequestDto } from './dto/create-admin-request.dto';
 import { CompleteAdminRequestDto } from './dto/complete-admin-request.dto';
 import { AdminRequestsFilterDto } from './dto/admin-requests-filter.dto';
+import { RequestClarificationAdminRequestDto } from './dto/request-clarification-admin-request.dto';
+import { ReplyAdminRequestDto } from './dto/reply-admin-request.dto';
+import { RejectAdminRequestDto } from './dto/reject-admin-request.dto';
 
 @ApiTags('admin-requests')
 @ApiBearerAuth()
@@ -45,5 +48,35 @@ export class AdminRequestsController {
     @CurrentUser() user: any,
   ) {
     return this.adminRequestsService.complete(id, dto, user.id, user.role as UserRole);
+  }
+
+  @Patch(':id/request-clarification')
+  @HttpCode(HttpStatus.OK)
+  requestClarification(
+    @Param('id') id: string,
+    @Body() dto: RequestClarificationAdminRequestDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.adminRequestsService.requestClarification(id, dto, user.id, user.role as UserRole);
+  }
+
+  @Patch(':id/reply')
+  @HttpCode(HttpStatus.OK)
+  reply(
+    @Param('id') id: string,
+    @Body() dto: ReplyAdminRequestDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.adminRequestsService.reply(id, dto, user.id, user.role as UserRole);
+  }
+
+  @Patch(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectAdminRequestDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.adminRequestsService.reject(id, dto, user.id, user.role as UserRole);
   }
 }

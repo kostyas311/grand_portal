@@ -19,7 +19,10 @@
     "react-hook-form": "^7.49.3",
     "@hookform/resolvers": "^3.3.4",
     "zod": "^3.22.4",
+    "draft-js": "^0.11.7",
+    "draftjs-to-html": "^0.9.1",
     "date-fns": "^3.3.1",
+    "html-to-draftjs": "^1.5.0",
     "lucide-react": "^0.316.0",
     "sonner": "^1.4.0",
     "react-dropzone": "^14.2.3",
@@ -41,6 +44,7 @@
     "recharts": "^2.10.0"
   },
   "devDependencies": {
+    "@types/draft-js": "^0.11.18",
     "@types/node": "^20.11.5",
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",

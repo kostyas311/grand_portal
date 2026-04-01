@@ -127,8 +127,9 @@ export class SourceMaterialsService {
   }
 
   async download(cardId: string, materialId: string, res: Response) {
+    const card = await this.getCard(cardId);
     const material = await this.prisma.sourceMaterial.findFirst({
-      where: { id: materialId, cardId },
+      where: { id: materialId, cardId: card.id },
     });
 
     if (!material) throw new NotFoundException('Материал не найден');
@@ -143,10 +144,10 @@ export class SourceMaterialsService {
   }
 
   async downloadAll(cardId: string, res: Response) {
-    await this.getCard(cardId);
+    const card = await this.getCard(cardId);
 
     const materials = await this.prisma.sourceMaterial.findMany({
-      where: { cardId, materialType: MaterialType.FILE },
+      where: { cardId: card.id, materialType: MaterialType.FILE },
     });
 
     const files = materials
@@ -163,20 +164,22 @@ export class SourceMaterialsService {
     }
 
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="materials_${cardId}.zip"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="materials_${card.publicId}.zip"`,
+    );
 
     const zipStream = await this.filesService.createZipStream(files);
     (zipStream as any).pipe(res);
   }
 
   async delete(cardId: string, materialId: string, userId: string, userRole?: UserRole) {
+    const card = await this.getCard(cardId);
     const material = await this.prisma.sourceMaterial.findFirst({
-      where: { id: materialId, cardId },
+      where: { id: materialId, cardId: card.id },
     });
 
     if (!material) throw new NotFoundException('Материал не найден');
-
-    const card = await this.getCard(cardId);
     if (card.isLocked) throw new ForbiddenException('Карточка закрыта');
     this.assertCanManageWorkingMaterials(card, userId, userRole);
 
@@ -188,7 +191,7 @@ export class SourceMaterialsService {
 
     await this.prisma.cardHistory.create({
       data: {
-        cardId,
+        cardId: card.id,
         userId,
         actionType: 'SOURCE_MATERIAL_REMOVED',
         oldValue: { title: material.title },

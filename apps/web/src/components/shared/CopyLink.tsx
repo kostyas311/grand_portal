@@ -8,9 +8,10 @@ import { cn } from '@/lib/utils';
 interface CopyLinkProps {
   url: string;
   className?: string;
+  iconOnly?: boolean;
 }
 
-export function CopyLink({ url, className }: CopyLinkProps) {
+export function CopyLink({ url, className, iconOnly = false }: CopyLinkProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -29,16 +30,17 @@ export function CopyLink({ url, className }: CopyLinkProps) {
       onClick={handleCopy}
       className={cn('btn-ghost text-sm', className)}
       title="Скопировать ссылку на карточку"
+      aria-label={copied ? 'Ссылка скопирована' : 'Скопировать ссылку на карточку'}
     >
       {copied ? (
         <>
           <Check className="w-4 h-4 text-green-500" />
-          <span className="text-green-600">Скопировано</span>
+          {!iconOnly && <span className="text-green-600">Скопировано</span>}
         </>
       ) : (
         <>
           <Link className="w-4 h-4" />
-          <span>Скопировать ссылку</span>
+          {!iconOnly && <span>Скопировать ссылку</span>}
         </>
       )}
     </button>

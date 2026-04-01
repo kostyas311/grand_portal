@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -10,10 +10,9 @@ import { CardStatusBadge } from '@/components/cards/CardStatusBadge';
 import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { KanbanBoard } from '@/components/cards/KanbanBoard';
 import { CardFiltersPanel } from '@/components/cards/CardFiltersPanel';
-import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { cardsApi } from '@/lib/api';
-import { formatDate, getMonthName, getDueDateIndicator } from '@/lib/utils';
+import { cardsApi, sprintsApi } from '@/lib/api';
+import { formatDate, getDueDateIndicator } from '@/lib/utils';
 import { FileText } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 
@@ -23,10 +22,6 @@ type Tab = 'assigned' | 'created';
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const router = useRouter();
-  const currentDate = new Date();
-  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
-  const defaultMonth = String(currentDate.getMonth() + 1);
-  const defaultYear = String(currentDate.getFullYear());
 
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [tab, setTab] = useState<Tab>('assigned');
@@ -35,12 +30,26 @@ export default function DashboardPage() {
     search: '',
     status: '',
     priority: '',
-    month: String(currentDate.getMonth() + 1),
-    year: String(currentDate.getFullYear()),
+    sprintId: '',
     sortBy: 'updatedAt',
     sortOrder: 'desc' as 'asc' | 'desc',
     page: 1,
   });
+
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+
+  const currentSprint = sprints.find((sprint) => sprint.status === 'IN_PROGRESS') ?? null;
+  const defaultSprintId = currentSprint?.id || sprints[0]?.id || '';
+  const selectedSprint = sprints.find((sprint) => sprint.id === filters.sprintId) ?? currentSprint ?? sprints[0] ?? null;
+
+  useEffect(() => {
+    if (!filters.sprintId && defaultSprintId) {
+      setFilters((prev) => ({ ...prev, sprintId: defaultSprintId }));
+    }
+  }, [defaultSprintId, filters.sprintId]);
 
   const updateFilter = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
@@ -65,13 +74,12 @@ export default function DashboardPage() {
         status: filters.status || undefined,
         priority: filters.priority || undefined,
         search: filters.search || undefined,
-        month: filters.month ? Number(filters.month) : undefined,
-        year: filters.year ? Number(filters.year) : undefined,
+        sprintId: filters.sprintId || undefined,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
         limit: 200,
       }),
-    enabled: viewMode === 'kanban',
+    enabled: viewMode === 'kanban' && !!filters.sprintId,
   });
 
   // For list: paginated with filters
@@ -84,14 +92,13 @@ export default function DashboardPage() {
         status: filters.status || undefined,
         priority: filters.priority || undefined,
         search: filters.search || undefined,
-        month: filters.month ? Number(filters.month) : undefined,
-        year: filters.year ? Number(filters.year) : undefined,
+        sprintId: filters.sprintId || undefined,
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
         page: filters.page,
         limit: 20,
       }),
-    enabled: viewMode === 'list',
+    enabled: viewMode === 'list' && !!filters.sprintId,
   });
 
   const listData = listQuery.data;
@@ -120,84 +127,86 @@ export default function DashboardPage() {
       search: '',
       status: '',
       priority: '',
-      month: defaultMonth,
-      year: defaultYear,
+      sprintId: defaultSprintId,
       page: 1,
     }));
   };
 
   return (
     <AppLayout>
-      {/* Header + табы — ограниченная ширина */}
-      <div className="page-container-wide">
-        <div className="page-header">
-          <div>
-            <h1 className="section-title">Мой кабинет</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Здравствуйте, {user?.fullName?.split(' ')[1] ?? user?.fullName}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <NotificationBell />
-            <Link href="/cards/new" className="btn-primary">
-              <Plus className="w-4 h-4" />
-              Создать карточку
-            </Link>
+      <div className="page-container-wide pb-3">
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Карточки</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Мой кабинет</h1>
+                <p className="page-subtitle">
+                  Здравствуйте, {user?.fullName?.split(' ')[1] ?? user?.fullName}. Здесь собраны ваши карточки и рабочая выборка выбранного спринта.
+                </p>
+              </div>
+
+              <div className="card-action-toolbar">
+                <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                  <button
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      tab === 'assigned' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                    onClick={() => setTab('assigned')}
+                  >
+                    Назначено на меня
+                  </button>
+                  <button
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      tab === 'created' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                    onClick={() => setTab('created')}
+                  >
+                    Создано мной
+                  </button>
+                </div>
+
+                <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                  <button
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'kanban' ? 'bg-white shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => setViewMode('kanban')}
+                    title="Канбан"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                  <button
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => setViewMode('list')}
+                    title="Список"
+                  >
+                    <LayoutList className="w-4 h-4" />
+                  </button>
+                </div>
+                <Link href="/cards/new" className="toolbar-button toolbar-button-primary">
+                  <Plus className="w-4 h-4" />
+                  Создать карточку
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <CardFiltersPanel
+                filters={filters}
+                sprints={sprints}
+                defaultSprintId={defaultSprintId}
+                searchPlaceholder="Поиск по моим карточкам..."
+                defaultCollapsed
+                autoExpandOnActive={false}
+                onChange={updateFilter}
+                onReset={resetFilters}
+              />
+            </div>
           </div>
         </div>
-
-        {/* Tabs + View toggle */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === 'assigned' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setTab('assigned')}
-            >
-              Назначено на меня
-            </button>
-            <button
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                tab === 'created' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'
-              }`}
-              onClick={() => setTab('created')}
-            >
-              Создано мной
-            </button>
-          </div>
-
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            <button
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-              onClick={() => setViewMode('kanban')}
-              title="Канбан"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-              onClick={() => setViewMode('list')}
-              title="Список"
-            >
-              <LayoutList className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <CardFiltersPanel
-          filters={filters}
-          years={years}
-          defaultMonth={defaultMonth}
-          defaultYear={defaultYear}
-          searchPlaceholder="Поиск по моим карточкам..."
-          onChange={updateFilter}
-          onReset={resetFilters}
-        />
       </div>
 
       {/* Kanban view — полная ширина */}
-      {viewMode === 'kanban' && (
+      {viewMode === 'kanban' && !!filters.sprintId && (
         <div className="page-container-wide pt-0">
           {kanbanQuery.isLoading ? (
             <div className="flex gap-3 overflow-hidden">
@@ -215,8 +224,8 @@ export default function DashboardPage() {
       )}
 
       {/* List view */}
-      {viewMode === 'list' && (
-        <div className="page-container-wide">
+      {viewMode === 'list' && !!filters.sprintId && (
+        <div className="page-container-wide pt-0">
           <div className="list-surface">
             <div className="list-surface-header">
               <div>
@@ -257,7 +266,7 @@ export default function DashboardPage() {
                     <tr>
                       <th>{renderSortHeader('ID', 'publicId')}</th>
                       <th>{renderSortHeader('Источник / Название', 'dataSource')}</th>
-                      <th>{renderSortHeader('Период', 'year')}</th>
+                      <th>{renderSortHeader('Спринт', 'sprint')}</th>
                       <th>{renderSortHeader('Статус', 'status')}</th>
                       <th>{renderSortHeader('Приоритет', 'priority')}</th>
                       <th>{renderSortHeader('Срок', 'dueDate')}</th>
@@ -270,6 +279,7 @@ export default function DashboardPage() {
                     {listData.items.map((card: any) => {
                       const indicator = getDueDateIndicator(card.dueDate, card.status);
                       const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
+                      const hasChildren = (card.children?.length ?? 0) > 0;
                       const rowBorder =
                         indicator === 'red' ? 'border-l-4 border-l-red-400' :
                         indicator === 'orange' ? 'border-l-4 border-l-orange-400' :
@@ -277,7 +287,7 @@ export default function DashboardPage() {
                       return (
                         <tr
                           key={card.id}
-                          className={`${rowBorder} cursor-pointer hover:bg-gray-50`}
+                          className={`${rowBorder} ${hasChildren ? 'table-row-parent' : ''} cursor-pointer hover:bg-gray-50`}
                           onClick={() => router.push(`/cards/${card.publicId}`)}
                         >
                           <td>
@@ -286,7 +296,9 @@ export default function DashboardPage() {
                           <td>
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                                  <span className={hasChildren ? 'font-medium table-parent-title' : 'font-medium text-gray-800'}>
+                                    {card.dataSource?.name}
+                                  </span>
                                 {hasNoSourceMaterials && (
                                   <span className="attention-chip">
                                     <AlertTriangle className="w-3 h-3" />
@@ -299,9 +311,7 @@ export default function DashboardPage() {
                               )}
                             </div>
                           </td>
-                          <td className="text-sm text-gray-500">
-                            {getMonthName(card.month)} {card.year}
-                          </td>
+                          <td className="text-sm text-gray-500">{card.sprint?.name || '—'}</td>
                           <td><CardStatusBadge status={card.status} /></td>
                           <td><CardPriorityBadge priority={card.priority} /></td>
                           <td>

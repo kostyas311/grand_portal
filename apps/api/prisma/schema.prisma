@@ -14,6 +14,11 @@ enum UserRole {
   ADMIN
 }
 
+enum ThemePreference {
+  LIGHT
+  DARK
+}
+
 enum CardStatus {
   NEW
   IN_PROGRESS
@@ -56,17 +61,35 @@ enum HistoryAction {
 enum NotificationType {
   ASSIGNMENT_CHANGED
   STATUS_CHANGED
+  CARD_UPDATED
   REVIEW_REQUEST
   COMMENT_ADDED
   SOURCE_MATERIAL_ADDED
   RESULT_ADDED
   ADMIN_REQUEST_CREATED
+  ADMIN_REQUEST_NEEDS_INFO
+  ADMIN_REQUEST_REPLIED
   ADMIN_REQUEST_COMPLETED
+  ADMIN_REQUEST_REJECTED
 }
 
 enum AdminRequestStatus {
   NEW
+  CLARIFICATION_REQUIRED
   DONE
+  REJECTED
+}
+
+enum InstructionStatus {
+  DRAFT
+  PUBLISHED
+  HIDDEN
+  ARCHIVED
+}
+
+enum SprintStatus {
+  IN_PROGRESS
+  CLOSED
 }
 
 model User {
@@ -75,6 +98,7 @@ model User {
   email        String    @unique
   passwordHash String    @map("password_hash")
   role         UserRole  @default(USER)
+  themePreference ThemePreference @default(LIGHT) @map("theme_preference")
   isActive     Boolean   @default(true) @map("is_active")
   position     String?
   phone        String?
@@ -93,6 +117,7 @@ model User {
   cardHistory      CardHistory[]
   reviewComments   ReviewComment[]
   createdSources   DataSource[]
+  dataSourceInstructionLinks DataSourceInstruction[] @relation("DataSourceInstructionCreator")
   watchedCards     CardWatcher[]
   notifications    Notification[] @relation("NotificationRecipient")
   sentNotifications Notification[] @relation("NotificationActor")
@@ -100,7 +125,14 @@ model User {
   pendingSentNotifications PendingNotification[] @relation("PendingNotificationActor")
   createdAdminRequests AdminRequest[] @relation("AdminRequestCreator")
   completedAdminRequests AdminRequest[] @relation("AdminRequestCompleter")
+  rejectedAdminRequests AdminRequest[] @relation("AdminRequestRejector")
+  adminRequestMessages AdminRequestMessage[]
   updatedNotificationEmailSettings NotificationEmailSettings[] @relation("NotificationEmailSettingsUpdatedBy")
+  createdInstructionFolders InstructionFolder[] @relation("InstructionFolderCreator")
+  instructions Instruction[] @relation("InstructionCreator")
+  updatedInstructions Instruction[] @relation("InstructionUpdater")
+  instructionAttachments InstructionAttachment[] @relation("InstructionAttachmentUploader")
+  instructionCardLinks CardInstruction[] @relation("CardInstructionCreator")
 
   @@index([email])
   @@index([role])
@@ -135,6 +167,7 @@ model DataSource {
 
   createdBy User   @relation(fields: [createdById], references: [id])
   cards     Card[]
+  instructionLinks DataSourceInstruction[]
 
   @@index([isActive])
   @@index([name])
@@ -145,6 +178,7 @@ model Card {
   id            String       @id @default(uuid())
   publicId      String       @unique @map("public_id")
   dataSourceId  String?      @map("data_source_id")
+  sprintId      String?      @map("sprint_id")
   extraTitle    String?      @map("extra_title")
   month         Int
   year          Int
@@ -167,6 +201,7 @@ model Card {
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
   dataSource    DataSource?    @relation(fields: [dataSourceId], references: [id])
+  sprint        Sprint?        @relation(fields: [sprintId], references: [id])
   executor      User?          @relation("CardExecutor", fields: [executorId], references: [id])
   reviewer      User?          @relation("CardReviewer", fields: [reviewerId], references: [id])
   createdBy     User           @relation("CardCreator", fields: [createdById], references: [id])
@@ -181,9 +216,11 @@ model Card {
   notifications   Notification[]
   pendingNotifications PendingNotification[]
   children        Card[]          @relation("CardHierarchy")
+  instructionLinks CardInstruction[]
 
   @@index([status])
   @@index([dataSourceId])
+  @@index([sprintId])
   @@index([executorId])
   @@index([reviewerId])
   @@index([createdById])
@@ -194,6 +231,22 @@ model Card {
   @@index([isLocked])
   @@index([parentId])
   @@map("cards")
+}
+
+model Sprint {
+  id        String       @id @default(uuid())
+  name      String       @unique
+  startDate DateTime     @map("start_date") @db.Date
+  endDate   DateTime     @map("end_date") @db.Date
+  status    SprintStatus @default(IN_PROGRESS)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  cards Card[]
+
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("sprints")
 }
 
 model SourceMaterial {
@@ -379,20 +432,26 @@ model AdminRequest {
   status           AdminRequestStatus @default(NEW)
   createdById      String             @map("created_by")
   completedById    String?            @map("completed_by")
+  rejectedById     String?            @map("rejected_by")
   completionComment String?           @map("completion_comment")
+  rejectionComment String?            @map("rejection_comment")
   completedAt      DateTime?          @map("completed_at")
+  rejectedAt       DateTime?          @map("rejected_at")
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
 
   createdBy    User                 @relation("AdminRequestCreator", fields: [createdById], references: [id])
   completedBy  User?                @relation("AdminRequestCompleter", fields: [completedById], references: [id])
+  rejectedBy   User?                @relation("AdminRequestRejector", fields: [rejectedById], references: [id])
   links        AdminRequestLink[]
+  messages     AdminRequestMessage[]
   notifications Notification[]
   pendingNotifications PendingNotification[]
 
   @@index([status])
   @@index([createdById])
   @@index([completedById])
+  @@index([rejectedById])
   @@index([createdAt])
   @@map("admin_requests")
 }
@@ -407,6 +466,22 @@ model AdminRequestLink {
 
   @@index([requestId])
   @@map("admin_request_links")
+}
+
+model AdminRequestMessage {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  authorId  String   @map("author_id")
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request AdminRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  User         @relation(fields: [authorId], references: [id])
+
+  @@index([requestId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("admin_request_messages")
 }
 
 model ReviewComment {
@@ -424,4 +499,107 @@ model ReviewComment {
   @@index([cardId])
   @@index([authorId])
   @@map("review_comments")
+}
+
+model InstructionFolder {
+  id          String   @id @default(uuid())
+  name        String
+  parentId    String?  @map("parent_id")
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy    User          @relation("InstructionFolderCreator", fields: [createdById], references: [id])
+  parent       InstructionFolder? @relation("InstructionFolderTree", fields: [parentId], references: [id])
+  children     InstructionFolder[] @relation("InstructionFolderTree")
+  instructions Instruction[]
+
+  @@unique([parentId, name])
+  @@index([name])
+  @@index([parentId])
+  @@index([createdById])
+  @@map("instruction_folders")
+}
+
+model Instruction {
+  id          String            @id @default(uuid())
+  publicId    String            @unique @map("public_id")
+  title       String
+  summary     String?
+  contentHtml String            @map("content_html")
+  status      InstructionStatus @default(DRAFT)
+  folderId    String?           @map("folder_id")
+  createdById String            @map("created_by")
+  updatedById String?           @map("updated_by")
+  publishedAt DateTime?         @map("published_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  folder      InstructionFolder?      @relation(fields: [folderId], references: [id])
+  createdBy   User                    @relation("InstructionCreator", fields: [createdById], references: [id])
+  updatedBy   User?                   @relation("InstructionUpdater", fields: [updatedById], references: [id])
+  attachments InstructionAttachment[]
+  cardLinks   CardInstruction[]
+  dataSourceLinks DataSourceInstruction[]
+
+  @@index([status])
+  @@index([folderId])
+  @@index([createdById])
+  @@index([updatedAt])
+  @@map("instructions")
+}
+
+model InstructionAttachment {
+  id           String   @id @default(uuid())
+  instructionId String  @map("instruction_id")
+  filePath     String   @map("file_path")
+  fileName     String   @map("file_name")
+  fileSize     BigInt   @map("file_size")
+  mimeType     String?  @map("mime_type")
+  fileHash     String?  @map("file_hash")
+  uploadedById String   @map("uploaded_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  instruction Instruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  uploadedBy  User        @relation("InstructionAttachmentUploader", fields: [uploadedById], references: [id])
+
+  @@index([instructionId])
+  @@index([uploadedById])
+  @@map("instruction_attachments")
+}
+
+model CardInstruction {
+  id            String   @id @default(uuid())
+  cardId         String   @map("card_id")
+  instructionId  String   @map("instruction_id")
+  createdById    String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  card         Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  instruction  Instruction @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  createdBy    User        @relation("CardInstructionCreator", fields: [createdById], references: [id])
+
+  @@unique([cardId, instructionId])
+  @@index([cardId])
+  @@index([instructionId])
+  @@index([createdById])
+  @@map("card_instructions")
+}
+
+model DataSourceInstruction {
+  id            String   @id @default(uuid())
+  dataSourceId   String   @map("data_source_id")
+  instructionId  String   @map("instruction_id")
+  createdById    String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  dataSource   DataSource   @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  instruction  Instruction  @relation(fields: [instructionId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("DataSourceInstructionCreator", fields: [createdById], references: [id])
+
+  @@unique([dataSourceId, instructionId])
+  @@index([dataSourceId])
+  @@index([instructionId])
+  @@index([createdById])
+  @@map("data_source_instructions")
 }

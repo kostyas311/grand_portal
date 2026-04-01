@@ -14,6 +14,8 @@ import { FilesModule } from './modules/files/files.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminRequestsModule } from './modules/admin-requests/admin-requests.module';
 import { NotificationEmailSettingsModule } from './modules/notification-email-settings/notification-email-settings.module';
+import { InstructionsModule } from './modules/instructions/instructions.module';
+import { SprintsModule } from './modules/sprints/sprints.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { NotificationEmailSettingsModule } from './modules/notification-email-se
     NotificationEmailSettingsModule,
     NotificationsModule,
     AdminRequestsModule,
+    InstructionsModule,
+    SprintsModule,
   ],
 })
 export class AppModule {}

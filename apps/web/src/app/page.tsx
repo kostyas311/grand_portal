@@ -1,36 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Search, Download, CheckCircle, Filter, ExternalLink } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { cardsApi, dataSourcesApi, resultsApi } from '@/lib/api';
-import { formatDate, getMonthName } from '@/lib/utils';
+import { cardsApi, dataSourcesApi, resultsApi, sprintsApi } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { useAuthStore } from '@/lib/store/auth.store';
 
 export default function PortalHomePage() {
-  const currentDate = new Date();
+  const { user } = useAuthStore();
   const [filters, setFilters] = useState({
     search: '',
     dataSourceId: '',
-    month: String(currentDate.getMonth() + 1),
-    year: String(currentDate.getFullYear()),
+    sprintId: '',
     page: 1,
     sortOrder: 'desc' as 'asc' | 'desc',
   });
+
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+  const currentSprint = sprints.find((sprint) => sprint.status === 'IN_PROGRESS') ?? null;
+  const defaultSprintId = currentSprint?.id || sprints[0]?.id || '';
+
+  useEffect(() => {
+    if (!filters.sprintId && defaultSprintId) {
+      setFilters((prev) => ({ ...prev, sprintId: defaultSprintId }));
+    }
+  }, [defaultSprintId, filters.sprintId]);
 
   const { data: cards, isLoading } = useQuery({
     queryKey: ['done-cards', filters],
     queryFn: () => cardsApi.getDone({
       search: filters.search || undefined,
       dataSourceId: filters.dataSourceId || undefined,
-      month: filters.month ? Number(filters.month) : undefined,
-      year: filters.year ? Number(filters.year) : undefined,
+      sprintId: filters.sprintId || undefined,
       page: filters.page,
       limit: 20,
       sortOrder: filters.sortOrder,
     }),
+    enabled: !!filters.sprintId,
   });
 
   const { data: sources } = useQuery({
@@ -42,24 +56,58 @@ export default function PortalHomePage() {
     setFilters(prev => ({ ...prev, [key]: value, page: 1 }));
   };
 
-  const years = Array.from({ length: 5 }, (_, i) => {
-    const y = currentDate.getFullYear() - 2 + i;
-    return { value: String(y), label: String(y) };
-  });
+  const extractFileName = (contentDisposition?: string, fallback = 'download') => {
+    if (!contentDisposition) {
+      return fallback;
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*\=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+
+    const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    if (plainMatch?.[1]) {
+      return plainMatch[1];
+    }
+
+    return fallback;
+  };
+
+  const saveBlob = (blob: Blob, fileName: string) => {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const handleDownloadResultZip = async (cardId: string, versionId: string) => {
+    try {
+      const { blob, contentDisposition } = await resultsApi.downloadVersionAll(cardId, versionId);
+      saveBlob(blob, extractFileName(contentDisposition, `${cardId}-results.zip`));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Не удалось скачать архив результата');
+    }
+  };
 
   return (
     <AppLayout>
       <div className="page-container">
-        {/* Header */}
-        <div className="page-header">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle className="w-6 h-6 text-green-500" />
-              <h1 className="section-title">Готовые проекты</h1>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Витрина результатов</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Готовые проекты</h1>
+                <p className="page-subtitle">
+                  Все завершённые карточки с итоговыми файлами и внешними ссылками, доступными для скачивания.
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-gray-500">
-              Все завершённые карточки. Результаты доступны для скачивания.
-            </p>
           </div>
         </div>
 
@@ -94,26 +142,14 @@ export default function PortalHomePage() {
               {/* Month */}
               <select
                 className="input w-auto"
-                value={filters.month}
-                onChange={e => updateFilter('month', e.target.value)}
+                value={filters.sprintId}
+                onChange={e => updateFilter('sprintId', e.target.value)}
               >
-                <option value="">Все месяцы</option>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={String(i + 1)}>
-                    {getMonthName(i + 1)}
+                <option value="">Все спринты</option>
+                {sprints.map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>
+                    {sprint.name}
                   </option>
-                ))}
-              </select>
-
-              {/* Year */}
-              <select
-                className="input w-auto"
-                value={filters.year}
-                onChange={e => updateFilter('year', e.target.value)}
-              >
-                <option value="">Все годы</option>
-                {years.map(y => (
-                  <option key={y.value} value={y.value}>{y.label}</option>
                 ))}
               </select>
 
@@ -164,11 +200,11 @@ export default function PortalHomePage() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-mono text-xs text-gray-400">{card.publicId}</span>
-                            <span className="text-gray-300">·</span>
-                            <span className="text-sm text-gray-500">
-                              {getMonthName(card.month)} {card.year}
-                            </span>
+                              <span className="font-mono text-xs text-gray-400">{card.publicId}</span>
+                              <span className="text-gray-300">·</span>
+                              <span className="text-sm text-gray-500">
+                              {card.sprint?.name || '—'}
+                              </span>
                             {card.completedAt && (
                               <>
                                 <span className="text-gray-300">·</span>
@@ -222,14 +258,14 @@ export default function PortalHomePage() {
                         {/* Actions */}
                         <div className="flex flex-col gap-2 flex-shrink-0">
                           {currentVersion?.items?.some((i: any) => i.itemType === 'FILE') && (
-                            <a
-                              href={resultsApi.downloadVersionAllUrl(card.id, currentVersion.id)}
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadResultZip(card.id, currentVersion.id)}
                               className="btn-primary text-xs px-4 py-1.5"
-                              download
                             >
                               <Download className="w-3 h-3" />
                               Скачать файлы
-                            </a>
+                            </button>
                           )}
                           <Link
                             href={`/cards/${card.publicId}`}

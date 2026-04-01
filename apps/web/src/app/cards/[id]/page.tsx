@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   ArrowLeft, Edit3, Trash2, Lock, User, Calendar, AlertTriangle,
   Paperclip, FileText, MessageSquare,
-  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp,
+  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp, BookOpen, Unlink2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -16,19 +16,88 @@ import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { CopyLink } from '@/components/shared/CopyLink';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExternalUrlLink } from '@/components/shared/ExternalUrlLink';
+import { CardInstructionsSidebar } from '@/components/instructions/CardInstructionsSidebar';
 import { isLocalPath } from '@/lib/utils';
-import { cardsApi, materialsApi, resultsApi, commentsApi, usersApi } from '@/lib/api';
+import { cardsApi, materialsApi, resultsApi, commentsApi, usersApi, getAccessToken } from '@/lib/api';
+import { instructionsApi } from '@/lib/api/instructions';
 import {
   formatDate, formatRelative, formatFileSize,
-  getMonthName,
 } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
+
+type HierarchyNode = {
+  id: string;
+  publicId: string;
+  title: string;
+  href?: string;
+  status?: string;
+  isCurrent?: boolean;
+  children?: HierarchyNode[];
+};
+
+function getHierarchyTitle(item: { dataSource?: { name?: string | null } | null; extraTitle?: string | null }) {
+  const baseTitle = item.dataSource?.name || 'Без источника';
+  return item.extraTitle ? `${baseTitle} — ${item.extraTitle}` : baseTitle;
+}
+
+function HierarchyTreeNode({ node, depth = 0 }: { node: HierarchyNode; depth?: number }) {
+  const hasChildren = (node.children?.length || 0) > 0;
+  const content = (
+    <div
+      className={`flex min-w-0 items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+        node.isCurrent
+          ? 'border-blue-200 bg-blue-50/80 shadow-sm'
+          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+      }`}
+    >
+      <div className="mt-1 flex h-2.5 w-2.5 flex-shrink-0 rounded-full bg-slate-300">
+        <span className={`h-2.5 w-2.5 rounded-full ${node.isCurrent ? 'bg-blue-500' : 'bg-slate-300'}`} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs text-slate-400">{node.publicId}</span>
+          {node.isCurrent && <span className="badge badge-review text-xs">Текущая</span>}
+          {node.status && <CardStatusBadge status={node.status} />}
+        </div>
+        <div className="mt-1 break-words text-sm font-medium text-slate-800">{node.title}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex min-w-0 items-start gap-3">
+        {depth > 0 && <div className="mt-5 h-px w-4 flex-shrink-0 bg-slate-300" />}
+        <div className="min-w-0 flex-1">
+          {node.href ? (
+            <Link href={node.href} className="block">
+              {content}
+            </Link>
+          ) : (
+            content
+          )}
+        </div>
+      </div>
+
+      {hasChildren && (
+        <div className="ml-3 border-l border-dashed border-slate-300 pl-5">
+          <div className="space-y-3">
+            {node.children!.map((child) => (
+              <HierarchyTreeNode key={child.id} node={child} depth={depth + 1} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [tokenReady, setTokenReady] = useState(() => !!getAccessToken());
   const [copiedUrlId, setCopiedUrlId] = useState<string | null>(null);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -37,6 +106,7 @@ export default function CardDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showUploadResult, setShowUploadResult] = useState(false);
+  const [showInstructionsSidebar, setShowInstructionsSidebar] = useState(false);
   const [newComment, setNewComment] = useState('');
 
   // Upload material state
@@ -57,6 +127,23 @@ export default function CardDetailPage() {
   const [resLinkTitle, setResLinkTitle] = useState('');
   const [resLinkDescription, setResLinkDescription] = useState('');
   const [showPreviousResults, setShowPreviousResults] = useState(false);
+  const [showHierarchy, setShowHierarchy] = useState(false);
+
+  useEffect(() => {
+    if (getAccessToken()) {
+      setTokenReady(true);
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (getAccessToken()) {
+        setTokenReady(true);
+        window.clearInterval(intervalId);
+      }
+    }, 100);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleUploadMaterial = async () => {
     setMatUploading(true);
@@ -113,20 +200,97 @@ export default function CardDetailPage() {
     }).catch(() => toast.error('Не удалось скопировать'));
   };
 
+  const extractFileName = (contentDisposition?: string, fallback = 'download') => {
+    if (!contentDisposition) {
+      return fallback;
+    }
+
+    const utf8Match = contentDisposition.match(/filename\*\=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+      return decodeURIComponent(utf8Match[1]);
+    }
+
+    const plainMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+    if (plainMatch?.[1]) {
+      return plainMatch[1];
+    }
+
+    return fallback;
+  };
+
+  const saveBlob = (blob: Blob, fileName: string) => {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const handleDownloadMaterial = async (materialId: string, fallbackName: string) => {
+    try {
+      const { blob, contentDisposition } = await materialsApi.download(id, materialId);
+      saveBlob(blob, extractFileName(contentDisposition, fallbackName));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Не удалось скачать материал');
+    }
+  };
+
+  const handleDownloadAllMaterials = async () => {
+    try {
+      const { blob, contentDisposition } = await materialsApi.downloadAll(id);
+      saveBlob(blob, extractFileName(contentDisposition, `${id}-materials.zip`));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Не удалось скачать архив материалов');
+    }
+  };
+
+  const handleDownloadResultZip = async (versionId: string) => {
+    try {
+      const { blob, contentDisposition } = await resultsApi.downloadVersionAll(id, versionId);
+      saveBlob(blob, extractFileName(contentDisposition, `${id}-results.zip`));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Не удалось скачать архив результата');
+    }
+  };
+
+  const handleDownloadResultItem = async (versionId: string, itemId: string, fallbackName: string) => {
+    try {
+      const { blob, contentDisposition } = await resultsApi.downloadItem(id, versionId, itemId);
+      saveBlob(blob, extractFileName(contentDisposition, fallbackName));
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Не удалось скачать файл результата');
+    }
+  };
+
+  const canLoadCard = tokenReady;
+
   const { data: card, isLoading, error } = useQuery({
     queryKey: ['card', id],
     queryFn: () => cardsApi.getById(id),
     retry: 1,
+    enabled: canLoadCard,
   });
 
   const { data: allUsers } = useQuery({
     queryKey: ['users-directory'],
     queryFn: () => usersApi.getDirectory(),
+    enabled: canLoadCard,
+  });
+
+  const assignableUsers = (allUsers || []).filter((candidate: any) => candidate.role !== 'ADMIN');
+
+  const { data: linkedInstructions } = useQuery({
+    queryKey: ['card-instructions', id],
+    queryFn: () => instructionsApi.getCardInstructions(id),
+    enabled: canLoadCard,
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ status, comment, reason }: { status: string; comment?: string; reason?: string }) =>
-      cardsApi.changeStatus(id, status, comment, reason),
+    mutationFn: ({ status, comment, reason, force }: { status: string; comment?: string; reason?: string; force?: boolean }) =>
+      cardsApi.changeStatus(id, status, comment, reason, force),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['card', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-kanban'] });
@@ -170,6 +334,7 @@ export default function CardDetailPage() {
   const { data: watchStatus, refetch: refetchWatch } = useQuery({
     queryKey: ['card-watch', id],
     queryFn: () => cardsApi.getWatchStatus(id),
+    enabled: canLoadCard,
   });
 
   const watchMutation = useMutation({
@@ -194,7 +359,18 @@ export default function CardDetailPage() {
     },
   });
 
-  if (isLoading) {
+  const detachInstructionMutation = useMutation({
+    mutationFn: (instructionId: string) => instructionsApi.detachFromCard(id, instructionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card-instructions', id] });
+      toast.success('Инструкция откреплена от карточки');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Не удалось открепить инструкцию');
+    },
+  });
+
+  if (!canLoadCard || isLoading) {
     return (
       <AppLayout>
         <div className="page-container">
@@ -225,12 +401,15 @@ export default function CardDetailPage() {
   const isExecutor = !!user?.id && card.executorId === user.id;
   const isReviewer = !!user?.id && card.reviewerId === user.id;
   const isCreator = !!user?.id && card.createdById === user.id;
+  const isInformationalCard = !!card.withoutSourceMaterials;
   const canEditWorkingCard = !isLocked && (isAdmin || (card.status === 'IN_PROGRESS' && isExecutor));
   const canReviewCard = !isLocked && (isAdmin || (card.status === 'REVIEW' && isReviewer));
   const canCommentInformationalCard =
-    !!card.withoutSourceMaterials && !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
-  const canAddComment = canReviewCard || canCommentInformationalCard;
-  const showCommentsSection = canAddComment || card.comments?.length > 0 || !!card.withoutSourceMaterials;
+    isInformationalCard && !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const canAddInlineComment = canCommentInformationalCard;
+  const canCreateChildCard = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const showCommentsSection = (card.comments?.length ?? 0) > 0;
+  const canManageInstructionLinks = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
   const canManageAssignments = !isLocked && isAdmin;
   const canCancelCard = !isLocked && ['NEW', 'IN_PROGRESS', 'REVIEW'].includes(card.status);
   const cardUrl = typeof window !== 'undefined'
@@ -276,11 +455,11 @@ export default function CardDetailPage() {
     const needsComment = pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW';
     const needsReason = pendingStatus === 'CANCELLED';
 
-    if (needsComment && !statusComment.trim()) {
+    if (!isAdmin && needsComment && !statusComment.trim()) {
       toast.error('Укажите причину возврата');
       return;
     }
-    if (needsReason && !statusReason.trim()) {
+    if (!isAdmin && needsReason && !statusReason.trim()) {
       toast.error('Укажите причину отмены');
       return;
     }
@@ -289,54 +468,90 @@ export default function CardDetailPage() {
       status: pendingStatus,
       comment: statusComment || undefined,
       reason: statusReason || undefined,
+      force: isAdmin,
     });
   };
 
   const currentVersion = card.resultVersions?.find((v: any) => v.isCurrent);
   const isOverdue = !!card.dueDate && new Date(card.dueDate) < new Date() && card.status !== 'DONE';
   const previousVersions = card.resultVersions?.filter((v: any) => !v.isCurrent) || [];
+  const hasHierarchyRelations = !!card.parent || (card.children?.length ?? 0) > 0;
+  const shouldHideResultsSection = card.withoutResult && (card.status === 'DONE' || card.status === 'CANCELLED');
+  const hierarchyTree: HierarchyNode = card.parent
+    ? {
+        id: card.parent.id,
+        publicId: card.parent.publicId,
+        title: getHierarchyTitle(card.parent),
+        href: `/cards/${card.parent.publicId}`,
+        children: [
+          {
+            id: card.id,
+            publicId: card.publicId,
+            title: getHierarchyTitle(card),
+            status: card.status,
+            isCurrent: true,
+            children: (card.children || []).map((child: any) => ({
+              id: child.id,
+              publicId: child.publicId,
+              title: getHierarchyTitle(child),
+              href: `/cards/${child.publicId}`,
+              status: child.status,
+            })),
+          },
+        ],
+      }
+    : {
+        id: card.id,
+        publicId: card.publicId,
+        title: getHierarchyTitle(card),
+        status: card.status,
+        isCurrent: true,
+        children: (card.children || []).map((child: any) => ({
+          id: child.id,
+          publicId: child.publicId,
+          title: getHierarchyTitle(child),
+          href: `/cards/${child.publicId}`,
+          status: child.status,
+        })),
+      };
 
   const renderResultVersion = (version: any, isHistorical = false) => (
     <div
       key={version.id}
-      className={`border rounded-sm p-4 ${
-        isHistorical
-          ? 'border-slate-200 bg-slate-50/70'
-          : 'border-green-200 bg-green-50/30'
-      }`}
+      className={`result-version-card ${isHistorical ? 'result-version-card-historical' : 'result-version-card-current'}`}
     >
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-sm font-semibold text-gray-700">
+          <span className="result-version-title">
             Версия {version.versionNumber}
           </span>
           {!isHistorical && (
             <span className="badge badge-done">Актуальная</span>
           )}
-          <span className="text-xs text-gray-400">
+          <span className="result-version-meta">
             {version.createdBy?.fullName} · {formatRelative(version.createdAt)}
           </span>
         </div>
         {version.items?.some((i: any) => i.itemType === 'FILE') && (
-          <a
-            href={resultsApi.downloadVersionAllUrl(id, version.id)}
-            className="btn-secondary text-xs px-3 py-1.5 shrink-0"
-            download
-          >
-            <Download className="w-3 h-3" />
-            Скачать ZIP
-          </a>
-        )}
+            <button
+              type="button"
+              onClick={() => handleDownloadResultZip(version.id)}
+              className="btn-secondary text-xs px-3 py-1.5 shrink-0"
+            >
+              <Download className="w-3 h-3" />
+              Скачать ZIP
+            </button>
+          )}
       </div>
 
       {version.comment && (
-        <p className="text-sm text-gray-600 mb-3 italic">"{version.comment}"</p>
+        <p className="result-version-comment">"{version.comment}"</p>
       )}
 
       <div className="space-y-1">
         {version.items?.map((item: any) => (
           <div key={item.id} className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2 text-sm text-gray-600 min-w-0 flex-1">
+            <div className="result-version-item flex min-w-0 flex-1 items-start gap-2 text-sm">
               {item.itemType === 'FILE' ? (
                 <FileText className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
               ) : isLocalPath(item.externalUrl) ? (
@@ -347,24 +562,24 @@ export default function CardDetailPage() {
               <div className="min-w-0">
                 <div className="truncate">{item.title}</div>
                 {item.itemType === 'EXTERNAL_LINK' && (
-                  <div className="text-xs text-gray-400 font-mono truncate">{item.externalUrl}</div>
+                  <div className="result-version-link truncate font-mono text-xs">{item.externalUrl}</div>
                 )}
                 {item.fileSize && (
-                  <span className="text-xs text-gray-400">
+                  <span className="result-version-link text-xs">
                     ({formatFileSize(Number(item.fileSize))})
                   </span>
                 )}
               </div>
             </div>
             {item.itemType === 'FILE' ? (
-              <a
-                href={resultsApi.downloadItemUrl(id, version.id, item.id)}
-                className="text-xs text-primary hover:underline flex-shrink-0"
-                download
-              >
-                Скачать
-              </a>
-            ) : (
+                <button
+                  type="button"
+                  onClick={() => handleDownloadResultItem(version.id, item.id, item.title || 'result-file')}
+                  className="text-xs text-primary hover:underline flex-shrink-0"
+                >
+                  Скачать
+                </button>
+              ) : (
               <button
                 className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
                 title="Скопировать"
@@ -390,37 +605,18 @@ export default function CardDetailPage() {
             <div className="page-title-row">
               <div className="flex-1 min-w-0">
                 <div className="page-kicker">Карточки</div>
-                <div className="page-chip-row mt-2">
-                  <span className="page-chip font-mono">{card.publicId}</span>
-                  <CardStatusBadge status={card.status} />
-                  <CardPriorityBadge priority={card.priority} />
-                  {card.withoutSourceMaterials && (
-                    <span className="page-chip">Без исходных данных</span>
-                  )}
-                  {card.withoutSourceMaterials && card.sourceMaterials?.length === 0 && (
-                    <span className="attention-chip">
-                      <AlertTriangle className="w-3 h-3" />
-                      Информационная
-                    </span>
-                  )}
-                  {card.withoutResult && (
-                    <span className="page-chip">Без результата</span>
-                  )}
-                  {isLocked && (
-                    <span className="page-chip">
-                      <Lock className="w-3 h-3" />
-                      Закрыта
-                    </span>
-                  )}
+                <div className="mt-3 flex items-center gap-2 text-sm font-mono text-slate-400">
+                  <span>{card.publicId}</span>
+                  {isLocked && <Lock className="w-3.5 h-3.5" aria-label="Карточка закрыта" />}
                 </div>
-                <h1 className="mt-4 whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900">
+                  <h1 className="mt-4 whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900">
                   {card.dataSource?.name || 'Без источника'}
                   {card.extraTitle && (
                     <span className="text-slate-500 font-normal"> — {card.extraTitle}</span>
                   )}
                 </h1>
                 <p className="page-subtitle">
-                  Период: {getMonthName(card.month)} {card.year}. Обновлено {formatRelative(card.updatedAt)}.
+                  Обновлено {formatRelative(card.updatedAt)}.
                 </p>
               </div>
 
@@ -430,7 +626,11 @@ export default function CardDetailPage() {
                     <ArrowLeft className="w-4 h-4" />
                     Назад к карточкам
                   </Link>
-                  <CopyLink url={cardUrl} className="toolbar-button toolbar-button-ghost" />
+                  <CopyLink
+                    url={cardUrl}
+                    iconOnly
+                    className="toolbar-button toolbar-button-ghost toolbar-button-icon"
+                  />
                   <button
                     className={`toolbar-button toolbar-button-secondary ${watchStatus?.watching ? 'toolbar-button-active' : ''}`}
                     onClick={() => watchMutation.mutate()}
@@ -446,6 +646,21 @@ export default function CardDetailPage() {
                       {watchStatus?.watcherCount ? ` (${watchStatus.watcherCount})` : ''}
                     </span>
                   </button>
+                  {(canManageInstructionLinks || (linkedInstructions?.length ?? 0) > 0) && (
+                    <button
+                      type="button"
+                      className={`toolbar-button toolbar-button-secondary toolbar-button-icon ${showInstructionsSidebar ? 'toolbar-button-active' : ''}`}
+                      onClick={() => setShowInstructionsSidebar((value) => !value)}
+                      title={
+                        showInstructionsSidebar
+                          ? 'Скрыть панель инструкций'
+                          : `Показать панель инструкций${linkedInstructions?.length ? ` (${linkedInstructions.length})` : ''}`
+                      }
+                      aria-label="Инструкции"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                    </button>
+                  )}
                   {canEditWorkingCard && (
                     <Link
                       href={`/cards/${card.publicId}/edit`}
@@ -533,8 +748,7 @@ export default function CardDetailPage() {
                       value={card.executorId || ''}
                       onChange={e => assignMutation.mutate({ executorId: e.target.value || null })}
                     >
-                      <option value="">— не назначен —</option>
-                      {allUsers?.map((u: any) => (
+                      {assignableUsers.map((u: any) => (
                         <option key={u.id} value={u.id}>{u.fullName}</option>
                       ))}
                     </select>
@@ -550,8 +764,7 @@ export default function CardDetailPage() {
                       value={card.reviewerId || ''}
                       onChange={e => assignMutation.mutate({ reviewerId: e.target.value || null })}
                     >
-                      <option value="">— не назначен —</option>
-                      {allUsers?.map((u: any) => (
+                      {assignableUsers.map((u: any) => (
                         <option key={u.id} value={u.id}>{u.fullName}</option>
                       ))}
                     </select>
@@ -580,59 +793,37 @@ export default function CardDetailPage() {
                   <p className="section-surface-subtitle">Связи с родительской и дочерними карточками.</p>
                 </div>
               </div>
-              {canEditWorkingCard && (
-                <Link
-                  href={`/cards/new?parentId=${card.id}`}
-                  className="btn-secondary text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Дочерняя карточка
-                </Link>
-              )}
-            </div>
-            <div className="card-body space-y-3">
-              {card.parent && (
-                <div>
-                  <div className="label">Родительская карточка</div>
-                  <Link
-                    href={`/cards/${card.parent.publicId}`}
-                    className="flex items-center gap-2 text-sm text-primary hover:underline"
+              <div className="flex items-center gap-2">
+                {hasHierarchyRelations && (
+                  <button
+                    type="button"
+                    className="toolbar-button toolbar-button-secondary"
+                    onClick={() => setShowHierarchy((value) => !value)}
                   >
-                    <span className="font-mono text-gray-400">{card.parent.publicId}</span>
-                    <span>
-                      {card.parent.dataSource?.name || 'Без источника'}
-                      {card.parent.extraTitle && ` — ${card.parent.extraTitle}`}
-                    </span>
+                    {showHierarchy ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {showHierarchy ? 'Свернуть' : 'Развернуть'}
+                  </button>
+                )}
+                {canCreateChildCard && (
+                  <Link
+                    href={`/cards/new?parentId=${card.id}`}
+                    className="btn-secondary text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Дочерняя карточка
                   </Link>
-                </div>
-              )}
-
-              {card.children?.length > 0 && (
-                <div>
-                  <div className="label">Дочерние карточки</div>
-                  <div className="space-y-1.5">
-                    {card.children.map((child: any) => (
-                      <Link
-                        key={child.id}
-                        href={`/cards/${child.publicId}`}
-                        className="flex items-center gap-2 text-sm hover:bg-gray-50 rounded-sm py-1"
-                      >
-                        <span className="font-mono text-gray-400 text-xs">{child.publicId}</span>
-                        <span className="flex-1 text-gray-700">
-                          {child.dataSource?.name || 'Без источника'}
-                          {child.extraTitle && ` — ${child.extraTitle}`}
-                        </span>
-                        <CardStatusBadge status={child.status} />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {!card.parent && card.children?.length === 0 && canEditWorkingCard && (
-                <p className="text-sm text-gray-400">Нет связанных карточек. Нажмите «Дочерняя карточка» чтобы создать.</p>
-              )}
+                )}
+              </div>
             </div>
+            {showHierarchy && (
+              <div className="card-body space-y-3">
+                {hasHierarchyRelations && <HierarchyTreeNode node={hierarchyTree} />}
+
+                {!hasHierarchyRelations && canCreateChildCard && (
+                  <p className="text-sm text-gray-400">Нет связанных карточек. Нажмите «Дочерняя карточка» чтобы создать.</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -695,15 +886,15 @@ export default function CardDetailPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {mat.materialType === 'FILE' ? (
-                        <a
-                          href={materialsApi.downloadUrl(id, mat.id)}
-                          className="btn-ghost text-xs"
-                          download
-                        >
-                          <Download className="w-3 h-3" />
-                          Скачать
-                        </a>
-                      ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadMaterial(mat.id, mat.title || 'material-file')}
+                            className="btn-ghost text-xs"
+                          >
+                            <Download className="w-3 h-3" />
+                            Скачать
+                          </button>
+                        ) : (
                         <button
                           className="btn-ghost text-xs"
                           title="Скопировать"
@@ -723,21 +914,22 @@ export default function CardDetailPage() {
 
             {card.sourceMaterials?.some((m: any) => m.materialType === 'FILE') && (
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <a
-                  href={materialsApi.downloadAllUrl(id)}
-                  className="btn-secondary text-sm"
-                  download
-                >
-                  <Download className="w-4 h-4" />
-                  Скачать все файлы (ZIP)
-                </a>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={handleDownloadAllMaterials}
+                    className="btn-secondary text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    Скачать все файлы (ZIP)
+                  </button>
+                </div>
+              )}
           </div>
         </div>
         )}
 
         {/* Results with versioning */}
+        {!shouldHideResultsSection && (
         <div className="section-surface">
           <div className="section-surface-header">
             <div className="flex items-center gap-2">
@@ -814,6 +1006,86 @@ export default function CardDetailPage() {
             )}
           </div>
         </div>
+        )}
+
+        {!!linkedInstructions?.length && (
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-gray-500" />
+                <div>
+                  <h2 className="section-surface-title">
+                    Инструкции
+                    <span className="text-gray-400 font-normal ml-1">({linkedInstructions.length})</span>
+                  </h2>
+                  <p className="section-surface-subtitle">
+                    Инструкции, которые вложены в эту карточку.
+                  </p>
+                </div>
+              </div>
+              {canManageInstructionLinks && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowInstructionsSidebar(true)}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Управлять инструкциями
+                </button>
+              )}
+            </div>
+            <div className="card-body">
+              <div className="space-y-3">
+                {linkedInstructions.map((link: any) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 lg:flex-row lg:items-start lg:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="page-chip font-mono">{link.instruction.publicId}</span>
+                        {link.instruction.folder && (
+                          <span className="page-chip">{link.instruction.folder.name}</span>
+                        )}
+                        <span className="text-xs text-slate-400">
+                          {formatRelative(link.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-3 text-base font-semibold text-slate-900">
+                        {link.instruction.title}
+                      </div>
+                      {link.instruction.summary && (
+                        <p className="mt-1 text-sm text-slate-500">{link.instruction.summary}</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/instructions/${link.instruction.publicId}`}
+                        target="_blank"
+                        className="btn-secondary"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Открыть
+                      </Link>
+                      {canManageInstructionLinks && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => detachInstructionMutation.mutate(link.instruction.id)}
+                          disabled={detachInstructionMutation.isPending}
+                        >
+                          <Unlink2 className="w-4 h-4" />
+                          Убрать
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Comments */}
         {showCommentsSection && (
@@ -823,13 +1095,13 @@ export default function CardDetailPage() {
                 <MessageSquare className="w-4 h-4 text-gray-500" />
                 <div>
                   <h2 className="section-surface-title">
-                    {card.withoutSourceMaterials ? 'Комментарии' : 'Комментарии проверки'}
+                    {isInformationalCard ? 'Комментарии' : 'Комментарии проверки'}
                     {card.comments?.length > 0 && (
                       <span className="text-gray-400 font-normal ml-1">({card.comments.length})</span>
                     )}
                   </h2>
                   <p className="section-surface-subtitle">
-                    {card.withoutSourceMaterials
+                    {isInformationalCard
                       ? 'Обсуждение, пояснения и рабочие заметки по информационной карточке.'
                       : 'Замечания и согласования по текущим версиям результата.'}
                   </p>
@@ -838,11 +1110,11 @@ export default function CardDetailPage() {
             </div>
             <div className="card-body">
               {/* New comment */}
-              {canAddComment && (
+              {canAddInlineComment && (
                 <div className="mb-4">
                   <textarea
                     className="input min-h-20 resize-none"
-                    placeholder={card.withoutSourceMaterials ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
+                    placeholder={isInformationalCard ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                   />
@@ -851,7 +1123,7 @@ export default function CardDetailPage() {
                     disabled={!newComment.trim() || commentMutation.isPending}
                     onClick={() => commentMutation.mutate(newComment)}
                   >
-                    {card.withoutSourceMaterials ? 'Добавить комментарий' : 'Отправить комментарий'}
+                    {isInformationalCard ? 'Добавить комментарий' : 'Отправить комментарий'}
                   </button>
                 </div>
               )}
@@ -1149,10 +1421,10 @@ export default function CardDetailPage() {
             {pendingStatus === 'CANCELLED' && (
               <div className="mb-4 space-y-4">
                 <div>
-                  <label className="label label-required">Причина отмены</label>
+                  <label className={`label ${isAdmin ? '' : 'label-required'}`}>Причина отмены</label>
                   <textarea
                     className="input min-h-20"
-                    placeholder="Опишите причину отмены карточки..."
+                    placeholder={isAdmin ? 'Причина отмены (необязательно)...' : 'Опишите причину отмены карточки...'}
                     value={statusReason}
                     onChange={e => setStatusReason(e.target.value)}
                   />
@@ -1171,10 +1443,10 @@ export default function CardDetailPage() {
 
             {pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW' && (
               <div className="mb-4">
-                <label className="label label-required">Замечания</label>
+                <label className={`label ${isAdmin ? '' : 'label-required'}`}>Замечания</label>
                 <textarea
                   className="input min-h-24"
-                  placeholder="Опишите обнаруженные ошибки или замечания..."
+                  placeholder={isAdmin ? 'Комментарий к возврату (необязательно)...' : 'Опишите обнаруженные ошибки или замечания...'}
                   value={statusComment}
                   onChange={e => setStatusComment(e.target.value)}
                 />
@@ -1221,6 +1493,14 @@ export default function CardDetailPage() {
           </div>
         </div>
       )}
+
+      <CardInstructionsSidebar
+        cardId={id}
+        isOpen={showInstructionsSidebar}
+        onClose={() => setShowInstructionsSidebar(false)}
+        linkedInstructions={linkedInstructions || []}
+        canManage={canManageInstructionLinks}
+      />
     </AppLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { Sidebar } from './Sidebar';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useAuthStore, SESSION_TIMEOUT_MS } from '@/lib/store/auth.store';
 import { authApi } from '@/lib/api';
 import { setAccessToken, getAccessToken } from '@/lib/api/client';
@@ -48,9 +49,18 @@ export function AppLayout({ children }: AppLayoutProps) {
       });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = user?.themePreference === 'DARK' ? 'dark' : 'light';
+
+    return () => {
+      delete root.dataset.theme;
+    };
+  }, [user?.themePreference]);
+
   if (!tokenReady) {
     return (
-      <div className="min-h-screen bg-[#eff4f8] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--color-bg)] flex items-center justify-center">
         <div className="text-gray-400 text-sm">Загрузка...</div>
       </div>
     );
@@ -63,7 +73,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="main-content flex-1">
+      <main className="main-content relative flex-1">
+        <div className="app-topbar">
+          <div className="app-topbar-inner">
+            <NotificationBell />
+          </div>
+        </div>
         {children}
       </main>
     </div>

@@ -28,14 +28,12 @@ export class CardsController {
 
   @Get('stats')
   getStats(
-    @Query('month') month?: string,
-    @Query('year') year?: string,
+    @Query('sprintId') sprintId?: string,
     @Query('dueDateFrom') dueDateFrom?: string,
     @Query('dueDateTo') dueDateTo?: string,
   ) {
     return this.service.getStats({
-      month: month ? parseInt(month) : undefined,
-      year: year ? parseInt(year) : undefined,
+      sprintId,
       dueDateFrom,
       dueDateTo,
     });
@@ -45,8 +43,7 @@ export class CardsController {
   findDone(
     @Query('search') search?: string,
     @Query('dataSourceId') dataSourceId?: string,
-    @Query('month') month?: string,
-    @Query('year') year?: string,
+    @Query('sprintId') sprintId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
@@ -54,8 +51,7 @@ export class CardsController {
     return this.service.findDone({
       search,
       dataSourceId,
-      month: month ? parseInt(month) : undefined,
-      year: year ? parseInt(year) : undefined,
+      sprintId,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 20,
       sortOrder,

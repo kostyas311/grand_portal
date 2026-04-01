@@ -11,8 +11,8 @@ import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { KanbanBoard } from '@/components/cards/KanbanBoard';
 import { CardFiltersPanel } from '@/components/cards/CardFiltersPanel';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { cardsApi, dataSourcesApi } from '@/lib/api';
-import { formatDate, getMonthName, getDueDateIndicator } from '@/lib/utils';
+import { cardsApi, dataSourcesApi, sprintsApi } from '@/lib/api';
+import { formatDate, getDueDateIndicator } from '@/lib/utils';
 import { FileText } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 
@@ -22,8 +22,7 @@ type CardFiltersState = {
   search: string;
   status: string;
   dataSourceId: string;
-  month: string;
-  year: string;
+  sprintId: string;
   dueDateFrom: string;
   dueDateTo: string;
   priority: string;
@@ -36,8 +35,7 @@ type CardFiltersState = {
 function getViewModeFromSearchParams(searchParams: ReadonlyURLSearchParams): ViewMode {
   return searchParams.get('view') === 'list' ||
     !!searchParams.get('status') ||
-    !!searchParams.get('month') ||
-    !!searchParams.get('year') ||
+    !!searchParams.get('sprintId') ||
     !!searchParams.get('dueDateFrom') ||
     !!searchParams.get('dueDateTo')
       ? 'list'
@@ -46,7 +44,7 @@ function getViewModeFromSearchParams(searchParams: ReadonlyURLSearchParams): Vie
 
 function getFiltersFromSearchParams(
   searchParams: ReadonlyURLSearchParams,
-  currentDate: Date,
+  defaultSprintId: string,
 ): CardFiltersState {
   const isArchivedParam = searchParams.get('isArchived');
 
@@ -54,8 +52,7 @@ function getFiltersFromSearchParams(
     search: searchParams.get('search') || '',
     status: searchParams.get('status') || '',
     dataSourceId: searchParams.get('dataSourceId') || '',
-    month: searchParams.get('month') || String(currentDate.getMonth() + 1),
-    year: searchParams.get('year') || String(currentDate.getFullYear()),
+    sprintId: searchParams.get('sprintId') || defaultSprintId,
     dueDateFrom: searchParams.get('dueDateFrom') || '',
     dueDateTo: searchParams.get('dueDateTo') || '',
     priority: searchParams.get('priority') || '',
@@ -73,11 +70,17 @@ function getFiltersFromSearchParams(
 }
 
 function AllCardsContent() {
-  const currentDate = new Date();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const searchParamsKey = searchParams.toString();
+
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+  const currentSprint = sprints.find((sprint) => sprint.status === 'IN_PROGRESS') ?? null;
+  const defaultSprintId = currentSprint?.id || sprints[0]?.id || '';
 
   // Redirect USER role to dashboard
   useEffect(() => {
@@ -87,12 +90,13 @@ function AllCardsContent() {
   }, [user, router]);
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => getViewModeFromSearchParams(searchParams));
-  const [filters, setFilters] = useState<CardFiltersState>(() => getFiltersFromSearchParams(searchParams, currentDate));
+  const [filters, setFilters] = useState<CardFiltersState>(() => getFiltersFromSearchParams(searchParams, defaultSprintId));
+  const selectedSprint = sprints.find((sprint) => sprint.id === filters.sprintId) ?? currentSprint ?? sprints[0] ?? null;
 
   useEffect(() => {
     setViewMode(getViewModeFromSearchParams(searchParams));
-    setFilters(getFiltersFromSearchParams(searchParams, currentDate));
-  }, [searchParams, searchParamsKey]);
+    setFilters(getFiltersFromSearchParams(searchParams, defaultSprintId));
+  }, [searchParams, searchParamsKey, defaultSprintId]);
 
   const updateFilter = (key: string, value: any) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
@@ -107,10 +111,6 @@ function AllCardsContent() {
     }));
   };
 
-  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
-  const defaultMonth = String(currentDate.getMonth() + 1);
-  const defaultYear = String(currentDate.getFullYear());
-
   // Kanban: fetch all without pagination
   const kanbanQuery = useQuery({
     queryKey: ['all-cards-kanban', filters],
@@ -118,8 +118,7 @@ function AllCardsContent() {
       search: filters.search || undefined,
       status: filters.status || undefined,
       dataSourceId: filters.dataSourceId || undefined,
-      month: filters.month ? Number(filters.month) : undefined,
-      year: filters.year ? Number(filters.year) : undefined,
+      sprintId: filters.sprintId || undefined,
       dueDateFrom: filters.dueDateFrom || undefined,
       dueDateTo: filters.dueDateTo || undefined,
       priority: filters.priority || undefined,
@@ -128,7 +127,7 @@ function AllCardsContent() {
       sortOrder: filters.sortOrder,
       limit: 200,
     }),
-    enabled: viewMode === 'kanban',
+    enabled: viewMode === 'kanban' && !!filters.sprintId,
   });
 
   // List: paginated with filters
@@ -139,8 +138,7 @@ function AllCardsContent() {
         search: filters.search || undefined,
         status: filters.status || undefined,
         dataSourceId: filters.dataSourceId || undefined,
-        month: filters.month ? Number(filters.month) : undefined,
-        year: filters.year ? Number(filters.year) : undefined,
+        sprintId: filters.sprintId || undefined,
         dueDateFrom: filters.dueDateFrom || undefined,
         dueDateTo: filters.dueDateTo || undefined,
         priority: filters.priority || undefined,
@@ -150,7 +148,7 @@ function AllCardsContent() {
         page: filters.page,
         limit: 20,
       }),
-    enabled: viewMode === 'list',
+    enabled: viewMode === 'list' && !!filters.sprintId,
   });
 
   const { data: sources } = useQuery({
@@ -186,8 +184,7 @@ function AllCardsContent() {
       search: '',
       status: '',
       dataSourceId: '',
-      month: defaultMonth,
-      year: defaultYear,
+      sprintId: defaultSprintId,
       dueDateFrom: '',
       dueDateTo: '',
       priority: '',
@@ -198,51 +195,64 @@ function AllCardsContent() {
 
   return (
     <AppLayout>
-      {/* Header — ограниченная ширина */}
-      <div className="page-container-wide">
-        <div className="page-header">
-          <h1 className="section-title">Все карточки</h1>
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              <button
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                onClick={() => setViewMode('kanban')}
-                title="Канбан"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white shadow text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-                onClick={() => setViewMode('list')}
-                title="Список"
-              >
-                <LayoutList className="w-4 h-4" />
-              </button>
+      <div className="page-container-wide pb-3">
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Карточки</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Все карточки</h1>
+                <p className="page-subtitle">
+                  Общая рабочая база карточек с фильтрацией, сортировкой и быстрым переключением между списком и канбаном в рамках выбранного спринта.
+                </p>
+              </div>
+
+              <div className="card-action-toolbar">
+                <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                  <button
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'kanban' ? 'bg-white shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => setViewMode('kanban')}
+                    title="Канбан"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                  </button>
+                  <button
+                    className={`p-1.5 rounded-lg transition-colors ${viewMode === 'list' ? 'bg-white shadow-sm text-primary' : 'text-slate-400 hover:text-slate-600'}`}
+                    onClick={() => setViewMode('list')}
+                    title="Список"
+                  >
+                    <LayoutList className="w-4 h-4" />
+                  </button>
+                </div>
+                <Link href="/cards/new" className="toolbar-button toolbar-button-primary">
+                  <Plus className="w-4 h-4" />
+                  Создать карточку
+                </Link>
+              </div>
             </div>
-            <Link href="/cards/new" className="btn-primary">
-              <Plus className="w-4 h-4" />
-              Создать карточку
-            </Link>
+
+            <div className="mt-5">
+              <CardFiltersPanel
+                filters={filters}
+                sprints={sprints}
+                defaultSprintId={defaultSprintId}
+                sources={sources}
+                showDataSource
+                showDueDateRange
+                showArchive
+                searchPlaceholder="Поиск по карточкам..."
+                defaultCollapsed
+                autoExpandOnActive={false}
+                onChange={updateFilter}
+                onReset={resetFilters}
+              />
+            </div>
           </div>
         </div>
-
-        <CardFiltersPanel
-          filters={filters}
-          years={years}
-          defaultMonth={defaultMonth}
-          defaultYear={defaultYear}
-          sources={sources}
-          showDataSource
-          showDueDateRange
-          showArchive
-          searchPlaceholder="Поиск по карточкам..."
-          onChange={updateFilter}
-          onReset={resetFilters}
-        />
       </div>
 
       {/* Kanban view — полная ширина без ограничения max-w */}
-      {viewMode === 'kanban' && (
+      {viewMode === 'kanban' && !!filters.sprintId && (
         <div className="page-container-wide pt-0">
           {kanbanQuery.isLoading ? (
             <div className="flex gap-3 overflow-hidden">
@@ -260,8 +270,8 @@ function AllCardsContent() {
       )}
 
       {/* List view */}
-      {viewMode === 'list' && (
-        <div className="page-container-wide">
+      {viewMode === 'list' && !!filters.sprintId && (
+        <div className="page-container-wide pt-0">
           <>
             <div className="list-surface">
               <div className="list-surface-header">
@@ -290,7 +300,7 @@ function AllCardsContent() {
                       <tr>
                         <th>{renderSortHeader('ID', 'publicId')}</th>
                         <th>{renderSortHeader('Источник / Название', 'dataSource')}</th>
-                        <th>{renderSortHeader('Период', 'year')}</th>
+                        <th>{renderSortHeader('Спринт', 'sprint')}</th>
                         <th>{renderSortHeader('Статус', 'status')}</th>
                         <th>{renderSortHeader('Приоритет', 'priority')}</th>
                         <th>{renderSortHeader('Срок', 'dueDate')}</th>
@@ -303,6 +313,7 @@ function AllCardsContent() {
                       {data.items.map((card: any) => {
                         const indicator = getDueDateIndicator(card.dueDate, card.status);
                         const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
+                        const hasChildren = (card.children?.length ?? 0) > 0;
                         const rowBorder =
                           indicator === 'red' ? 'border-l-4 border-l-red-400' :
                           indicator === 'orange' ? 'border-l-4 border-l-orange-400' :
@@ -310,7 +321,7 @@ function AllCardsContent() {
                         return (
                           <tr
                             key={card.id}
-                            className={`${rowBorder} cursor-pointer hover:bg-gray-50`}
+                            className={`${rowBorder} ${hasChildren ? 'table-row-parent' : ''} cursor-pointer hover:bg-gray-50`}
                             onClick={() => router.push(`/cards/${card.publicId}`)}
                           >
                             <td>
@@ -319,7 +330,9 @@ function AllCardsContent() {
                             <td>
                               <div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium text-gray-800">{card.dataSource?.name}</span>
+                                  <span className={hasChildren ? 'font-medium table-parent-title' : 'font-medium text-gray-800'}>
+                                    {card.dataSource?.name}
+                                  </span>
                                   {hasNoSourceMaterials && (
                                     <span className="attention-chip">
                                       <AlertTriangle className="w-3 h-3" />
@@ -330,7 +343,7 @@ function AllCardsContent() {
                                 {card.extraTitle && <div className="text-xs text-gray-400">{card.extraTitle}</div>}
                               </div>
                             </td>
-                            <td className="text-sm text-gray-500">{getMonthName(card.month)} {card.year}</td>
+                            <td className="text-sm text-gray-500">{card.sprint?.name || '—'}</td>
                             <td><CardStatusBadge status={card.status} /></td>
                             <td><CardPriorityBadge priority={card.priority} /></td>
                             <td>

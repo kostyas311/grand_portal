@@ -119,39 +119,45 @@ export default function AdminNotificationsPage() {
   return (
     <AppLayout>
       <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="section-title">Email-уведомления</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Настройка почтового сервера для рассылки уведомлений пользователям системы
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              className="btn-secondary"
-              onClick={() => testMutation.mutate()}
-              disabled={testMutation.isPending || saveMutation.isPending || isLoading}
-            >
-              {testMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Проверка...
-                </>
-              ) : (
-                <>
-                  <PlugZap className="w-4 h-4" />
-                  Тест соединения
-                </>
-              )}
-            </button>
-            <button
-              className="btn-primary"
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || testMutation.isPending || isLoading}
-            >
-              <Save className="w-4 h-4" />
-              Сохранить
-            </button>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Администрирование</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Email-уведомления</h1>
+                <p className="page-subtitle">
+                  Настройка SMTP-сервера для отправки накопленных уведомлений пользователям системы.
+                </p>
+              </div>
+
+              <div className="card-action-toolbar">
+                <button
+                  className="toolbar-button toolbar-button-secondary"
+                  onClick={() => testMutation.mutate()}
+                  disabled={testMutation.isPending || saveMutation.isPending || isLoading}
+                >
+                  {testMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Проверка...
+                    </>
+                  ) : (
+                    <>
+                      <PlugZap className="w-4 h-4" />
+                      Тест соединения
+                    </>
+                  )}
+                </button>
+                <button
+                  className="toolbar-button toolbar-button-primary"
+                  onClick={() => saveMutation.mutate()}
+                  disabled={saveMutation.isPending || testMutation.isPending || isLoading}
+                >
+                  <Save className="w-4 h-4" />
+                  Сохранить
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
