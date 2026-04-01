@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { Search, Download, CheckCircle, Filter, ExternalLink } from 'lucide-react';
@@ -13,7 +12,6 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { useAuthStore } from '@/lib/store/auth.store';
 
 export default function PortalHomePage() {
-  const router = useRouter();
   const { user } = useAuthStore();
   const [filters, setFilters] = useState({
     search: '',
@@ -29,12 +27,6 @@ export default function PortalHomePage() {
   });
   const currentSprint = sprints.find((sprint) => sprint.status === 'IN_PROGRESS') ?? null;
   const defaultSprintId = currentSprint?.id || sprints[0]?.id || '';
-
-  useEffect(() => {
-    if (user?.role === 'ADMIN') {
-      router.replace('/cards');
-    }
-  }, [user?.role, router]);
 
   useEffect(() => {
     if (!filters.sprintId && defaultSprintId) {
@@ -101,10 +93,6 @@ export default function PortalHomePage() {
       toast.error(err?.response?.data?.message || 'Не удалось скачать архив результата');
     }
   };
-
-  if (user?.role === 'ADMIN') {
-    return null;
-  }
 
   return (
     <AppLayout>

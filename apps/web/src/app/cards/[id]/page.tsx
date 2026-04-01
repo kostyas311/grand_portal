@@ -518,21 +518,17 @@ export default function CardDetailPage() {
   const renderResultVersion = (version: any, isHistorical = false) => (
     <div
       key={version.id}
-      className={`border rounded-sm p-4 ${
-        isHistorical
-          ? 'border-slate-200 bg-slate-50/70'
-          : 'border-green-200 bg-green-50/30'
-      }`}
+      className={`result-version-card ${isHistorical ? 'result-version-card-historical' : 'result-version-card-current'}`}
     >
       <div className="flex items-center justify-between mb-3 gap-3">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-sm font-semibold text-gray-700">
+          <span className="result-version-title">
             Версия {version.versionNumber}
           </span>
           {!isHistorical && (
             <span className="badge badge-done">Актуальная</span>
           )}
-          <span className="text-xs text-gray-400">
+          <span className="result-version-meta">
             {version.createdBy?.fullName} · {formatRelative(version.createdAt)}
           </span>
         </div>
@@ -549,13 +545,13 @@ export default function CardDetailPage() {
       </div>
 
       {version.comment && (
-        <p className="text-sm text-gray-600 mb-3 italic">"{version.comment}"</p>
+        <p className="result-version-comment">"{version.comment}"</p>
       )}
 
       <div className="space-y-1">
         {version.items?.map((item: any) => (
           <div key={item.id} className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2 text-sm text-gray-600 min-w-0 flex-1">
+            <div className="result-version-item flex min-w-0 flex-1 items-start gap-2 text-sm">
               {item.itemType === 'FILE' ? (
                 <FileText className="w-3 h-3 text-blue-400 flex-shrink-0 mt-0.5" />
               ) : isLocalPath(item.externalUrl) ? (
@@ -566,10 +562,10 @@ export default function CardDetailPage() {
               <div className="min-w-0">
                 <div className="truncate">{item.title}</div>
                 {item.itemType === 'EXTERNAL_LINK' && (
-                  <div className="text-xs text-gray-400 font-mono truncate">{item.externalUrl}</div>
+                  <div className="result-version-link truncate font-mono text-xs">{item.externalUrl}</div>
                 )}
                 {item.fileSize && (
-                  <span className="text-xs text-gray-400">
+                  <span className="result-version-link text-xs">
                     ({formatFileSize(Number(item.fileSize))})
                   </span>
                 )}
