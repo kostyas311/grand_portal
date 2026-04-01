@@ -465,7 +465,11 @@ export class InstructionsService {
     extraTitle?: string | null;
     dataSource?: { name?: string | null } | null;
   }) {
-    return card.extraTitle || card.dataSource?.name || card.publicId;
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private async resolveFolderId(folderId: string | undefined, newFolderName: string | undefined, userId: string) {

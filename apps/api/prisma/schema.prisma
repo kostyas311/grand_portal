@@ -133,6 +133,10 @@ model User {
   updatedInstructions Instruction[] @relation("InstructionUpdater")
   instructionAttachments InstructionAttachment[] @relation("InstructionAttachmentUploader")
   instructionCardLinks CardInstruction[] @relation("CardInstructionCreator")
+  createdComponents Component[] @relation("ComponentCreator")
+  updatedComponents Component[] @relation("ComponentUpdater")
+  componentCardLinks CardComponent[] @relation("CardComponentCreator")
+  componentDataSourceLinks DataSourceComponent[] @relation("DataSourceComponentCreator")
 
   @@index([email])
   @@index([role])
@@ -168,6 +172,7 @@ model DataSource {
   createdBy User   @relation(fields: [createdById], references: [id])
   cards     Card[]
   instructionLinks DataSourceInstruction[]
+  componentLinks DataSourceComponent[]
 
   @@index([isActive])
   @@index([name])
@@ -217,6 +222,7 @@ model Card {
   pendingNotifications PendingNotification[]
   children        Card[]          @relation("CardHierarchy")
   instructionLinks CardInstruction[]
+  componentLinks CardComponent[]
 
   @@index([status])
   @@index([dataSourceId])
@@ -602,4 +608,64 @@ model DataSourceInstruction {
   @@index([instructionId])
   @@index([createdById])
   @@map("data_source_instructions")
+}
+
+model Component {
+  id          String   @id @default(uuid())
+  publicId    String   @unique @map("public_id")
+  name        String
+  description String?
+  location    String
+  isArchived  Boolean  @default(false) @map("is_archived")
+  createdById String   @map("created_by")
+  updatedById String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User @relation("ComponentCreator", fields: [createdById], references: [id])
+  updatedBy User? @relation("ComponentUpdater", fields: [updatedById], references: [id])
+  cardLinks CardComponent[]
+  dataSourceLinks DataSourceComponent[]
+
+  @@index([isArchived])
+  @@index([name])
+  @@index([createdById])
+  @@index([updatedAt])
+  @@map("components")
+}
+
+model CardComponent {
+  id          String   @id @default(uuid())
+  cardId       String   @map("card_id")
+  componentId  String   @map("component_id")
+  createdById  String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  component  Component @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  createdBy  User      @relation("CardComponentCreator", fields: [createdById], references: [id])
+
+  @@unique([cardId, componentId])
+  @@index([cardId])
+  @@index([componentId])
+  @@index([createdById])
+  @@map("card_components")
+}
+
+model DataSourceComponent {
+  id           String   @id @default(uuid())
+  dataSourceId String   @map("data_source_id")
+  componentId  String   @map("component_id")
+  createdById  String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  dataSource DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  component  Component  @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  createdBy  User       @relation("DataSourceComponentCreator", fields: [createdById], references: [id])
+
+  @@unique([dataSourceId, componentId])
+  @@index([dataSourceId])
+  @@index([componentId])
+  @@index([createdById])
+  @@map("data_source_components")
 }

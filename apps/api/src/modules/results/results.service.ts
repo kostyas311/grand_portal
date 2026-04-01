@@ -143,7 +143,7 @@ export class ResultsService {
     await this.notifications.createForCardEvent(cardId, {
       type: NotificationType.RESULT_ADDED,
       title: 'Загружен новый результат',
-      message: `По карточке «${card.extraTitle || card.publicId}» загружена версия результата №${versionNumber}.`,
+      message: `По карточке «${this.getCardDisplayName(card)}» загружена версия результата №${versionNumber}.`,
       actorId: userId,
       excludeUserIds: [userId],
     });
@@ -219,9 +219,24 @@ export class ResultsService {
   private async getCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
+      include: {
+        dataSource: { select: { name: true } },
+      },
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
+  }
+
+  private getCardDisplayName(card: {
+    publicId: string;
+    extraTitle?: string | null;
+    dataSource?: { name?: string | null } | null;
+  }) {
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private assertCanManageWorkingResult(card: any, userId: string, userRole?: UserRole) {

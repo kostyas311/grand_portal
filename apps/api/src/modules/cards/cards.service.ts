@@ -309,12 +309,27 @@ export class CardsService {
         where: { dataSourceId: card.dataSourceId },
         select: { instructionId: true },
       });
+      const sourceComponents = await this.prisma.dataSourceComponent.findMany({
+        where: { dataSourceId: card.dataSourceId },
+        select: { componentId: true },
+      });
 
       if (sourceInstructions.length > 0) {
         await this.prisma.cardInstruction.createMany({
           data: sourceInstructions.map((link) => ({
             cardId: card.id,
             instructionId: link.instructionId,
+            createdById: userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      if (sourceComponents.length > 0) {
+        await this.prisma.cardComponent.createMany({
+          data: sourceComponents.map((link) => ({
+            cardId: card.id,
+            componentId: link.componentId,
             createdById: userId,
           })),
           skipDuplicates: true,
@@ -800,7 +815,11 @@ export class CardsService {
   }
 
   private getCardDisplayName(card: any) {
-    return card.extraTitle || card.dataSource?.name || card.publicId;
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private getStatusNotificationTitle(status: CardStatus) {

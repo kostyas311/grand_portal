@@ -10,6 +10,7 @@
     --color-accent: #067C34;
     --color-bg: #eff4f8;
     --color-surface: #ffffff;
+    --page-shell-width: min(1600px, calc(100vw - 32px));
     --color-surface-soft: #f8fbff;
     --color-surface-muted: #f8fafc;
     --color-border: #e2e8f0;
@@ -92,13 +93,13 @@
 
   /* Page container */
   .page-container {
-    width: min(1170px, calc(100vw - 40px));
+    width: var(--page-shell-width);
     margin-inline: auto;
     padding: clamp(20px, 2vw, 32px);
   }
 
   .page-container-wide {
-    width: min(1760px, calc(100vw - 32px));
+    width: var(--page-shell-width);
     margin-inline: auto;
     padding: clamp(20px, 1.8vw, 32px);
   }
@@ -252,6 +253,67 @@
   .data-table tr:last-child td {
     @apply border-b-0;
   }
+
+  .data-table-components {
+      table-layout: fixed;
+      min-width: 0;
+    }
+
+  .data-table-components th:nth-child(1),
+  .data-table-components td:nth-child(1) {
+      width: 22%;
+    }
+
+  .data-table-components th:nth-child(2),
+  .data-table-components td:nth-child(2) {
+      width: 32%;
+    }
+
+  .data-table-components th:nth-child(3),
+  .data-table-components td:nth-child(3) {
+      width: 24%;
+    }
+
+  .data-table-components th:nth-child(4),
+  .data-table-components td:nth-child(4) {
+      width: 10%;
+    }
+
+  .data-table-components th:nth-child(5),
+  .data-table-components td:nth-child(5) {
+      width: 12%;
+    }
+
+  .data-table-components-admin th:nth-child(6),
+  .data-table-components-admin td:nth-child(6) {
+      width: 10%;
+    }
+
+  .data-table-components-readonly th:nth-child(1),
+  .data-table-components-readonly td:nth-child(1),
+  .data-table-components-readonly th:nth-child(2),
+  .data-table-components-readonly td:nth-child(2) {
+      white-space: normal;
+    }
+
+  .data-table-components-admin th:nth-child(1),
+  .data-table-components-admin td:nth-child(1),
+  .data-table-components-admin th:nth-child(2),
+  .data-table-components-admin td:nth-child(2) {
+      white-space: normal;
+    }
+
+  .data-table-components-admin th:last-child,
+  .data-table-components-admin td:last-child {
+      position: sticky;
+      right: 0;
+      z-index: 2;
+      background-color: var(--color-surface);
+    }
+
+  .data-table-components-admin tr:hover td:last-child {
+      background-color: var(--color-table-row-hover);
+    }
 
   /* Sidebar nav */
   .sidebar-nav-item {
@@ -749,6 +811,44 @@
     background-color: var(--color-surface-soft);
   }
 
+  .app-modal-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  }
+
+  .app-modal-backdrop {
+    @apply absolute inset-0 bg-black/45 backdrop-blur-sm;
+  }
+
+  .app-modal-panel {
+    @apply relative z-10 w-full overflow-hidden rounded-[28px] border shadow-2xl;
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+  }
+
+  .app-modal-panel-md {
+    max-width: 40rem;
+  }
+
+  .app-modal-panel-lg {
+    max-width: 52rem;
+  }
+
+  .app-modal-header {
+    @apply flex items-start justify-between gap-4 border-b px-6 py-5;
+    border-color: var(--color-border);
+    background-color: var(--color-surface-soft);
+  }
+
+  .app-modal-body {
+    @apply px-6 py-5;
+  }
+
+  .app-modal-actions {
+    @apply flex justify-end gap-3 border-t px-6 py-4;
+    border-color: var(--color-border);
+    background-color: var(--color-surface-soft);
+  }
+
   .result-version-card {
     @apply rounded-xl border p-4;
   }
@@ -874,6 +974,14 @@
     background-color: var(--color-surface);
   }
 
+  .instruction-editor-layout {
+    @apply grid gap-0 xl:grid-cols-[minmax(0,1fr)_320px];
+  }
+
+  .instruction-editor-main {
+    min-width: 0;
+  }
+
   .instruction-editor-toolbar {
     @apply flex flex-wrap items-center gap-2 border-b px-4 py-3;
     border-color: var(--color-border);
@@ -904,6 +1012,37 @@
   .instruction-editor-canvas:empty::before {
     content: attr(data-placeholder);
     @apply pointer-events-none text-slate-400;
+  }
+
+  .instruction-components-sidebar {
+    @apply border-t xl:border-l xl:border-t-0;
+    border-color: var(--color-border);
+    background-color: var(--color-surface-soft);
+  }
+
+  .instruction-components-sidebar-header {
+    @apply border-b px-4 py-4;
+    border-color: var(--color-border);
+  }
+
+  .instruction-components-sidebar-body {
+    @apply flex h-full flex-col gap-4 px-4 py-4;
+  }
+
+  .instruction-components-list {
+    @apply space-y-3 overflow-y-auto;
+    max-height: 640px;
+  }
+
+  .instruction-component-card {
+    @apply rounded-2xl border px-4 py-4 transition hover:shadow-sm;
+    border-color: var(--color-border);
+    background-color: var(--color-surface);
+    cursor: grab;
+  }
+
+  .instruction-component-card:active {
+    cursor: grabbing;
   }
 
   .instruction-editor-canvas h1,
@@ -993,6 +1132,23 @@
     @apply rounded-lg bg-slate-100 px-2 py-1 font-medium text-slate-700 no-underline;
   }
 
+  .instruction-prose .instruction-component-link {
+    @apply my-3 flex flex-col gap-1 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 no-underline transition;
+    cursor: pointer;
+  }
+
+  .instruction-prose .instruction-component-link:hover {
+    @apply border-blue-300 bg-blue-100/80;
+  }
+
+  .instruction-prose .instruction-component-link-title {
+    @apply text-sm font-semibold text-blue-700;
+  }
+
+  .instruction-prose .instruction-component-link-description {
+    @apply text-sm leading-6 text-slate-600;
+  }
+
   .data-table th:nth-child(1),
   .data-table td:nth-child(1) {
     width: 10%;
@@ -1038,6 +1194,68 @@
     width: 8%;
   }
 
+  .data-table-sources {
+      table-layout: fixed;
+      min-width: 0;
+    }
+
+  .data-table-sources th:nth-child(1),
+  .data-table-sources td:nth-child(1) {
+      width: 17%;
+    }
+
+  .data-table-sources th:nth-child(2),
+  .data-table-sources td:nth-child(2) {
+      width: 33%;
+    }
+
+  .data-table-sources th:nth-child(3),
+  .data-table-sources td:nth-child(3) {
+      width: 12%;
+    }
+
+  .data-table-sources th:nth-child(4),
+  .data-table-sources td:nth-child(4) {
+      width: 12%;
+    }
+
+  .data-table-sources th:nth-child(5),
+  .data-table-sources td:nth-child(5) {
+      width: 12%;
+    }
+
+  .data-table-sources th:nth-child(6),
+  .data-table-sources td:nth-child(6) {
+      width: 14%;
+    }
+
+  .data-table-sources td {
+      vertical-align: middle;
+    }
+
+  .data-table-sources th:nth-child(1),
+  .data-table-sources td:nth-child(1),
+  .data-table-sources th:nth-child(2),
+  .data-table-sources td:nth-child(2) {
+      white-space: normal;
+    }
+
+  .data-table-sources th:nth-child(3),
+  .data-table-sources td:nth-child(3),
+  .data-table-sources th:nth-child(4),
+  .data-table-sources td:nth-child(4),
+  .data-table-sources th:nth-child(5),
+  .data-table-sources td:nth-child(5),
+  .data-table-sources th:nth-child(6),
+  .data-table-sources td:nth-child(6) {
+      white-space: nowrap;
+    }
+
+  .data-table-sources th:last-child,
+  .data-table-sources td:last-child {
+      text-align: right;
+    }
+
   /* Skeleton */
   .skeleton {
     @apply bg-gray-200 rounded animate-pulse;
@@ -1050,9 +1268,9 @@
   }
 
   .app-topbar-inner {
-    width: min(1760px, calc(100% - 32px));
-    @apply mx-auto flex items-center justify-end gap-3 px-5 py-3;
-  }
+      width: var(--page-shell-width);
+      @apply mx-auto flex items-center justify-end gap-3 px-5 py-3;
+    }
 
   .theme-choice {
     @apply inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors duration-150;
@@ -1496,6 +1714,24 @@
 [data-theme='dark'] .result-version-card-historical {
   background-color: var(--color-surface-soft);
   border-color: var(--color-border);
+}
+
+[data-theme='dark'] .instruction-prose .instruction-component-link {
+  background-color: rgba(59, 130, 246, 0.16);
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+[data-theme='dark'] .instruction-prose .instruction-component-link:hover {
+  background-color: rgba(59, 130, 246, 0.22);
+  border-color: rgba(147, 197, 253, 0.34);
+}
+
+[data-theme='dark'] .instruction-prose .instruction-component-link-title {
+  color: #93c5fd;
+}
+
+[data-theme='dark'] .instruction-prose .instruction-component-link-description {
+  color: var(--color-text-muted);
 }
 
 [data-theme='dark'] .input::placeholder {

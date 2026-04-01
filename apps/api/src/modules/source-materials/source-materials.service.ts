@@ -75,7 +75,7 @@ export class SourceMaterialsService {
       await this.notifications.createForCardEvent(resolvedCardId, {
         type: NotificationType.SOURCE_MATERIAL_ADDED,
         title: 'Добавлены исходные данные',
-        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        message: `В карточку «${this.getCardDisplayName(card)}» добавлен новый материал «${material.title}».`,
         actorId: userId,
         excludeUserIds: [userId],
       });
@@ -108,7 +108,7 @@ export class SourceMaterialsService {
       await this.notifications.createForCardEvent(resolvedCardId, {
         type: NotificationType.SOURCE_MATERIAL_ADDED,
         title: 'Добавлены исходные данные',
-        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        message: `В карточку «${this.getCardDisplayName(card)}» добавлен новый материал «${material.title}».`,
         actorId: userId,
         excludeUserIds: [userId],
       });
@@ -204,9 +204,24 @@ export class SourceMaterialsService {
   private async getCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
+      include: {
+        dataSource: { select: { name: true } },
+      },
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
+  }
+
+  private getCardDisplayName(card: {
+    publicId: string;
+    extraTitle?: string | null;
+    dataSource?: { name?: string | null } | null;
+  }) {
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private assertCanManageWorkingMaterials(card: any, userId: string, userRole?: UserRole) {

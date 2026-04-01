@@ -16,6 +16,7 @@ import { AdminRequestsModule } from './modules/admin-requests/admin-requests.mod
 import { NotificationEmailSettingsModule } from './modules/notification-email-settings/notification-email-settings.module';
 import { InstructionsModule } from './modules/instructions/instructions.module';
 import { SprintsModule } from './modules/sprints/sprints.module';
+import { ComponentsModule } from './modules/components/components.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SprintsModule } from './modules/sprints/sprints.module';
     NotificationsModule,
     AdminRequestsModule,
     InstructionsModule,
+    ComponentsModule,
     SprintsModule,
   ],
 })

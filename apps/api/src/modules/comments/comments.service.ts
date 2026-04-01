@@ -14,9 +14,13 @@ export class CommentsService {
   private getCardDisplayName(card: {
     publicId: string;
     extraTitle?: string | null;
-    dataSourceId?: string | null;
+    dataSource?: { name?: string | null } | null;
   }) {
-    return card.extraTitle || card.publicId;
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private formatCommentForNotification(text: string) {
@@ -31,6 +35,9 @@ export class CommentsService {
   private async resolveCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
+      include: {
+        dataSource: { select: { name: true } },
+      },
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;

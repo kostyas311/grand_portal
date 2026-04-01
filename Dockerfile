@@ -22,7 +22,7 @@ WORKDIR /app/api
 COPY apps/api/prisma ./prisma
 RUN npx prisma generate
 COPY apps/api/ .
-RUN npm run build && npx tsc -p tsconfig.seed.json
+RUN npm run build
 
 
 # ── API — production образ ────────────────────────────────────
@@ -31,7 +31,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Только production зависимости
 COPY apps/api/package*.json ./
 RUN npm install --omit=dev
 
@@ -42,10 +41,6 @@ COPY --from=api-builder /app/api/dist ./dist
 COPY --from=api-builder /app/api/node_modules/.prisma ./node_modules/.prisma
 COPY --from=api-builder /app/api/node_modules/@prisma ./node_modules/@prisma
 
-# Prisma CLI (нужен для db push)
-COPY --from=api-builder /app/api/node_modules/prisma ./node_modules/prisma
-COPY --from=api-builder /app/api/node_modules/.bin/prisma ./node_modules/.bin/prisma
-
 # Prisma схема и миграции
 COPY apps/api/prisma ./prisma
 
@@ -53,7 +48,7 @@ RUN mkdir -p /app/storage
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "./node_modules/.bin/prisma db push --accept-data-loss && node dist/prisma/seed.js && node dist/main"]
+CMD ["node", "dist/main.js"]
 
 
 # ══════════════════════════════════════════════════════════════

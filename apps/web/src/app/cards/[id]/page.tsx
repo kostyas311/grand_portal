@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   ArrowLeft, Edit3, Trash2, Lock, User, Calendar, AlertTriangle,
   Paperclip, FileText, MessageSquare,
-  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp, BookOpen, Unlink2,
+  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp, BookOpen, Unlink2, Boxes,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -17,9 +17,12 @@ import { CopyLink } from '@/components/shared/CopyLink';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExternalUrlLink } from '@/components/shared/ExternalUrlLink';
 import { CardInstructionsSidebar } from '@/components/instructions/CardInstructionsSidebar';
+import { CardComponentsSidebar } from '@/components/components/CardComponentsSidebar';
+import { ComponentLocationActions } from '@/components/components/ComponentLocationActions';
 import { isLocalPath } from '@/lib/utils';
 import { cardsApi, materialsApi, resultsApi, commentsApi, usersApi, getAccessToken } from '@/lib/api';
 import { instructionsApi } from '@/lib/api/instructions';
+import { componentsApi } from '@/lib/api/components';
 import {
   formatDate, formatRelative, formatFileSize,
 } from '@/lib/utils';
@@ -36,8 +39,14 @@ type HierarchyNode = {
 };
 
 function getHierarchyTitle(item: { dataSource?: { name?: string | null } | null; extraTitle?: string | null }) {
-  const baseTitle = item.dataSource?.name || 'Без источника';
-  return item.extraTitle ? `${baseTitle} — ${item.extraTitle}` : baseTitle;
+  const sourceName = item.dataSource?.name?.trim();
+  const extraTitle = item.extraTitle?.trim();
+
+  if (sourceName && extraTitle) {
+    return `${sourceName} — ${extraTitle}`;
+  }
+
+  return sourceName || extraTitle || 'Карточка';
 }
 
 function HierarchyTreeNode({ node, depth = 0 }: { node: HierarchyNode; depth?: number }) {
@@ -107,6 +116,7 @@ export default function CardDetailPage() {
   const [showUploadMaterial, setShowUploadMaterial] = useState(false);
   const [showUploadResult, setShowUploadResult] = useState(false);
   const [showInstructionsSidebar, setShowInstructionsSidebar] = useState(false);
+  const [showComponentsSidebar, setShowComponentsSidebar] = useState(false);
   const [newComment, setNewComment] = useState('');
 
   // Upload material state
@@ -288,6 +298,12 @@ export default function CardDetailPage() {
     enabled: canLoadCard,
   });
 
+  const { data: linkedComponents } = useQuery({
+    queryKey: ['card-components', id],
+    queryFn: () => componentsApi.getCardComponents(id),
+    enabled: canLoadCard,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ status, comment, reason, force }: { status: string; comment?: string; reason?: string; force?: boolean }) =>
       cardsApi.changeStatus(id, status, comment, reason, force),
@@ -370,6 +386,17 @@ export default function CardDetailPage() {
     },
   });
 
+  const detachComponentMutation = useMutation({
+    mutationFn: (componentId: string) => componentsApi.detachFromCard(id, componentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card-components', id] });
+      toast.success('Компонент убран из карточки');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Не удалось убрать компонент');
+    },
+  });
+
   if (!canLoadCard || isLoading) {
     return (
       <AppLayout>
@@ -410,6 +437,7 @@ export default function CardDetailPage() {
   const canCreateChildCard = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
   const showCommentsSection = (card.comments?.length ?? 0) > 0;
   const canManageInstructionLinks = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const canManageComponentLinks = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
   const canManageAssignments = !isLocked && isAdmin;
   const canCancelCard = !isLocked && ['NEW', 'IN_PROGRESS', 'REVIEW'].includes(card.status);
   const cardUrl = typeof window !== 'undefined'
@@ -610,8 +638,8 @@ export default function CardDetailPage() {
                   {isLocked && <Lock className="w-3.5 h-3.5" aria-label="Карточка закрыта" />}
                 </div>
                   <h1 className="mt-4 whitespace-nowrap text-2xl font-semibold leading-tight text-slate-900">
-                  {card.dataSource?.name || 'Без источника'}
-                  {card.extraTitle && (
+                  {card.dataSource?.name || card.extraTitle || 'Карточка'}
+                  {card.dataSource?.name && card.extraTitle && (
                     <span className="text-slate-500 font-normal"> — {card.extraTitle}</span>
                   )}
                 </h1>
@@ -659,6 +687,21 @@ export default function CardDetailPage() {
                       aria-label="Инструкции"
                     >
                       <BookOpen className="w-4 h-4" />
+                    </button>
+                  )}
+                  {(canManageComponentLinks || (linkedComponents?.length ?? 0) > 0) && (
+                    <button
+                      type="button"
+                      className={`toolbar-button toolbar-button-secondary toolbar-button-icon ${showComponentsSidebar ? 'toolbar-button-active' : ''}`}
+                      onClick={() => setShowComponentsSidebar((value) => !value)}
+                      title={
+                        showComponentsSidebar
+                          ? 'Скрыть панель компонентов'
+                          : `Показать панель компонентов${linkedComponents?.length ? ` (${linkedComponents.length})` : ''}`
+                      }
+                      aria-label="Компоненты"
+                    >
+                      <Boxes className="w-4 h-4" />
                     </button>
                   )}
                   {canEditWorkingCard && (
@@ -1087,6 +1130,74 @@ export default function CardDetailPage() {
           </div>
         )}
 
+        {!!linkedComponents?.length && (
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div className="flex items-center gap-2">
+                <Boxes className="w-4 h-4 text-gray-500" />
+                <div>
+                  <h2 className="section-surface-title">
+                    Компоненты
+                    <span className="text-gray-400 font-normal ml-1">({linkedComponents.length})</span>
+                  </h2>
+                  <p className="section-surface-subtitle">
+                    Инструменты и скрипты, которые используются для обработки данных по этой карточке.
+                  </p>
+                </div>
+              </div>
+              {canManageComponentLinks && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowComponentsSidebar(true)}
+                >
+                  <Boxes className="w-4 h-4" />
+                  Управлять компонентами
+                </button>
+              )}
+            </div>
+            <div className="card-body">
+              <div className="space-y-3">
+                {linkedComponents.map((link: any) => (
+                  <div
+                    key={link.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 lg:flex-row lg:items-start lg:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="page-chip font-mono">{link.component.publicId}</span>
+                        <span className="text-xs text-slate-400">{formatRelative(link.createdAt)}</span>
+                        <span className="page-chip">{link.component._count?.cardLinks || 0} карточек</span>
+                      </div>
+                      <div className="mt-3 text-sm font-semibold text-slate-900">{link.component.name}</div>
+                      {link.component.description && (
+                        <p className="mt-1 text-sm text-slate-500">{link.component.description}</p>
+                      )}
+                      <div className="mt-3">
+                        <ComponentLocationActions location={link.component.location} />
+                      </div>
+                    </div>
+
+                    {canManageComponentLinks && (
+                      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => detachComponentMutation.mutate(link.component.id)}
+                          disabled={detachComponentMutation.isPending}
+                        >
+                          <Unlink2 className="w-4 h-4" />
+                          Убрать
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Comments */}
         {showCommentsSection && (
           <div className="section-surface">
@@ -1500,6 +1611,13 @@ export default function CardDetailPage() {
         onClose={() => setShowInstructionsSidebar(false)}
         linkedInstructions={linkedInstructions || []}
         canManage={canManageInstructionLinks}
+      />
+      <CardComponentsSidebar
+        cardId={id}
+        isOpen={showComponentsSidebar}
+        onClose={() => setShowComponentsSidebar(false)}
+        linkedComponents={linkedComponents || []}
+        canManage={canManageComponentLinks}
       />
     </AppLayout>
   );
