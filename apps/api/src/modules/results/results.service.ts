@@ -152,8 +152,9 @@ export class ResultsService {
   }
 
   async downloadVersionAll(cardId: string, versionId: string, res: Response) {
+    const card = await this.getCard(cardId);
     const version = await this.prisma.resultVersion.findFirst({
-      where: { id: versionId, cardId },
+      where: { id: versionId, cardId: card.id },
       include: { items: true },
     });
 
@@ -181,6 +182,7 @@ export class ResultsService {
   }
 
   async downloadItem(cardId: string, versionId: string, itemId: string, res: Response) {
+    const card = await this.getCard(cardId);
     const item = await this.prisma.resultItem.findFirst({
       where: { id: itemId, resultVersionId: versionId },
     });
@@ -188,7 +190,7 @@ export class ResultsService {
     if (!item || !item.filePath) throw new NotFoundException('Файл не найден');
 
     const version = await this.prisma.resultVersion.findFirst({
-      where: { id: versionId, cardId },
+      where: { id: versionId, cardId: card.id },
     });
     if (!version) throw new NotFoundException('Версия не найдена');
 

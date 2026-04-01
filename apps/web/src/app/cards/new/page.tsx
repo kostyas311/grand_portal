@@ -10,21 +10,19 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2, AlertTriangle, Plus, Paperclip, Link as LinkIcon, X, FileText, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { cardsApi, dataSourcesApi, usersApi, materialsApi } from '@/lib/api';
-import { getMonthName } from '@/lib/utils';
+import { cardsApi, dataSourcesApi, usersApi, materialsApi, sprintsApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store/auth.store';
 import type { User } from '@/lib/store/auth.store';
 
 const schema = z.object({
   dataSourceId: z.string().optional(),
+  sprintId: z.string().min(1, 'Выберите спринт'),
   extraTitle: z.string().min(1, 'Введите наименование').max(255),
-  month: z.number().min(1).max(12),
-  year: z.number().min(2000).max(2100),
   description: z.string().optional(),
   priority: z.enum(['OPTIONAL', 'NORMAL', 'URGENT', 'CRITICAL']),
   dueDate: z.string().optional(),
   executorId: z.string().min(1, 'Выберите исполнителя'),
-  reviewerId: z.string().optional(),
+  reviewerId: z.string().min(1, 'Выберите проверяющего'),
   parentId: z.string().optional(),
   withoutResult: z.boolean().default(false),
   withoutSourceMaterials: z.boolean().default(false),
@@ -50,9 +48,6 @@ function NewCardForm() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
-  const currentDate = new Date();
-  const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth() + 1;
   const parentIdFromUrl = searchParams.get('parentId') || undefined;
 
   const [materials, setMaterials] = useState<PendingMaterial[]>([]);
@@ -74,6 +69,15 @@ function NewCardForm() {
     queryFn: () => usersApi.getDirectory(),
   });
 
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+
+  const currentSprint = sprints.find((sprint: any) => sprint.status === 'IN_PROGRESS') ?? null;
+
+  const assignableUsers = (users || []).filter((candidate: User) => candidate.role !== 'ADMIN');
+
   const { data: parentCard } = useQuery({
     queryKey: ['card', parentIdFromUrl],
     queryFn: () => cardsApi.getById(parentIdFromUrl!),
@@ -83,11 +87,10 @@ function NewCardForm() {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      month: currentMonth,
-      year: currentYear,
+      sprintId: '',
       priority: 'NORMAL',
       dueDate: getDueDateByPriority('NORMAL'),
-      reviewerId: user?.id ?? '',
+      reviewerId: user?.role === 'ADMIN' ? '' : user?.id ?? '',
       parentId: parentIdFromUrl,
       withoutResult: false,
       withoutSourceMaterials: false,
@@ -96,6 +99,20 @@ function NewCardForm() {
 
   const withoutResult = watch('withoutResult');
   const withoutSourceMaterials = watch('withoutSourceMaterials');
+  const selectedSprintId = watch('sprintId');
+  const selectedReviewerId = watch('reviewerId');
+
+  useEffect(() => {
+    if (currentSprint && !selectedSprintId) {
+      setValue('sprintId', currentSprint.id);
+    }
+  }, [currentSprint, selectedSprintId, setValue]);
+
+  useEffect(() => {
+    if (user?.role !== 'ADMIN' && user?.id && !selectedReviewerId) {
+      setValue('reviewerId', user.id, { shouldValidate: true });
+    }
+  }, [selectedReviewerId, setValue, user?.id, user?.role]);
 
   useEffect(() => {
     if (parentCard?.dataSourceId) {
@@ -180,16 +197,6 @@ function NewCardForm() {
                   Новая карточка создаётся по единому шаблону: основные данные, исходные материалы,
                   параметры исполнения и назначения.
                 </p>
-                <div className="page-chip-row">
-                  <span className="page-chip">{getMonthName(currentMonth)} {currentYear}</span>
-                  <span className="page-chip">Стартовый статус: Новое</span>
-                  <span className="page-chip">
-                    {withoutSourceMaterials ? 'Без исходных данных' : 'Исходные данные обязательны'}
-                  </span>
-                  <span className="page-chip">
-                    {withoutResult ? 'Без результата' : 'Результат потребуется на проверке'}
-                  </span>
-                </div>
                 {parentIdFromUrl && (
                   <p className="text-sm text-gray-500 mt-4">
                     Дочерняя карточка для{' '}
@@ -212,6 +219,16 @@ function NewCardForm() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {!currentSprint && (
+            <div className="section-surface">
+              <div className="card-body">
+                <div className="soft-note text-sm text-slate-700">
+                  Активный спринт пока не создан. Перед созданием карточки администратор должен открыть новый спринт.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Основные данные */}
           <div className="section-surface">
             <div className="section-surface-header">
@@ -221,6 +238,19 @@ function NewCardForm() {
               </div>
             </div>
             <div className="card-body space-y-4">
+              <div>
+                <label className="label label-required">Спринт</label>
+                <select className={`input ${errors.sprintId ? 'input-error' : ''}`} {...register('sprintId')}>
+                  <option value="">— Выберите спринт —</option>
+                  {sprints.filter((sprint: any) => sprint.status === 'IN_PROGRESS').map((sprint: any) => (
+                    <option key={sprint.id} value={sprint.id}>
+                      {sprint.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.sprintId && <p className="error-message">{errors.sprintId.message}</p>}
+              </div>
+
               <div>
                 <label className="label">
                   Источник данных
@@ -261,9 +291,6 @@ function NewCardForm() {
                 />
                 {errors.extraTitle && <p className="error-message">{errors.extraTitle.message}</p>}
               </div>
-
-              <input type="hidden" {...register('month', { valueAsNumber: true })} value={currentMonth} />
-              <input type="hidden" {...register('year', { valueAsNumber: true })} value={currentYear} />
 
               <div>
                 <label className="label">Краткое описание</label>
@@ -481,7 +508,7 @@ function NewCardForm() {
                   <label className="label label-required">Исполнитель</label>
                   <select className={`input ${errors.executorId ? 'input-error' : ''}`} {...register('executorId')}>
                     <option value="">— Выберите исполнителя —</option>
-                    {users?.map((u: any) => (
+                    {assignableUsers.map((u: User) => (
                       <option key={u.id} value={u.id}>{u.fullName}</option>
                     ))}
                   </select>
@@ -490,11 +517,12 @@ function NewCardForm() {
                 <div>
                   <label className="label">Проверяющий</label>
                   <select className="input" {...register('reviewerId')}>
-                    <option value="">— Не назначен —</option>
-                    {users?.map((u: any) => (
+                    <option value="">— Выберите проверяющего —</option>
+                    {assignableUsers.map((u: User) => (
                       <option key={u.id} value={u.id}>{u.fullName}</option>
                     ))}
                   </select>
+                  {errors.reviewerId && <p className="error-message">{errors.reviewerId.message}</p>}
                 </div>
               </div>
             </div>
@@ -502,7 +530,7 @@ function NewCardForm() {
 
           <div className="form-actions">
             <Link href={parentIdFromUrl ? `/cards/${parentIdFromUrl}` : '/dashboard'} className="btn-secondary">Отмена</Link>
-            <button type="submit" className="btn-primary" disabled={submitting}>
+            <button type="submit" className="btn-primary" disabled={submitting || !currentSprint}>
               {submitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />

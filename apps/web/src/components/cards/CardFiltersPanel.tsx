@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Search, SlidersHorizontal, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
-import { getMonthName } from '@/lib/utils';
+import type { SprintItem } from '@/lib/api/sprints';
 
 type BaseFilters = {
   search: string;
   status: string;
-  month: string;
-  year: string;
+  sprintId: string;
   priority: string;
   dataSourceId?: string;
   dueDateFrom?: string;
@@ -23,9 +22,8 @@ type SourceOption = {
 
 interface CardFiltersPanelProps {
   filters: BaseFilters;
-  years: number[];
-  defaultMonth: string;
-  defaultYear: string;
+  sprints?: SprintItem[];
+  defaultSprintId: string;
   onChange: (key: string, value: any) => void;
   onReset: () => void;
   sources?: SourceOption[];
@@ -33,6 +31,8 @@ interface CardFiltersPanelProps {
   showDueDateRange?: boolean;
   showArchive?: boolean;
   searchPlaceholder?: string;
+  defaultCollapsed?: boolean;
+  autoExpandOnActive?: boolean;
 }
 
 const STATUS_OPTIONS = [
@@ -54,9 +54,8 @@ const PRIORITY_OPTIONS = [
 
 export function CardFiltersPanel({
   filters,
-  years,
-  defaultMonth,
-  defaultYear,
+  sprints,
+  defaultSprintId,
   onChange,
   onReset,
   sources,
@@ -64,43 +63,43 @@ export function CardFiltersPanel({
   showDueDateRange = false,
   showArchive = false,
   searchPlaceholder = 'Поиск...',
+  defaultCollapsed = false,
+  autoExpandOnActive = true,
 }: CardFiltersPanelProps) {
+  const sprintName = sprints?.find((sprint) => sprint.id === filters.sprintId)?.name;
+
   const advancedCount = useMemo(() => {
     let count = 0;
-    if (filters.month !== defaultMonth) count += 1;
-    if (filters.year !== defaultYear) count += 1;
+    if (filters.sprintId !== defaultSprintId) count += 1;
     if (filters.priority) count += 1;
     if (showDataSource && filters.dataSourceId) count += 1;
     if (showDueDateRange && (filters.dueDateFrom || filters.dueDateTo)) count += 1;
     if (showArchive && filters.isArchived) count += 1;
     return count;
   }, [
-    defaultMonth,
-    defaultYear,
+    defaultSprintId,
     filters.dataSourceId,
     filters.dueDateFrom,
     filters.dueDateTo,
     filters.isArchived,
-    filters.month,
     filters.priority,
-    filters.year,
+    filters.sprintId,
     showArchive,
     showDataSource,
     showDueDateRange,
   ]);
 
-  const [expanded, setExpanded] = useState(advancedCount > 0);
+  const [expanded, setExpanded] = useState(defaultCollapsed ? false : advancedCount > 0);
 
   useEffect(() => {
-    if (advancedCount > 0) {
+    if (autoExpandOnActive && advancedCount > 0) {
       setExpanded(true);
     }
-  }, [advancedCount]);
+  }, [advancedCount, autoExpandOnActive]);
 
   const sourceName = sources?.find((source) => source.id === filters.dataSourceId)?.name;
   const statusLabel = STATUS_OPTIONS.find((option) => option.value === filters.status)?.label;
   const priorityLabel = PRIORITY_OPTIONS.find((option) => option.value === filters.priority)?.label;
-  const periodLabel = `${getMonthName(Number(filters.month || defaultMonth))} ${filters.year || defaultYear}`;
 
   return (
     <div className="card mb-4">
@@ -151,7 +150,7 @@ export function CardFiltersPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="page-chip">Период: {periodLabel}</span>
+          <span className="page-chip">Спринт: {sprintName || 'Не выбран'}</span>
           {filters.status && <span className="page-chip">Статус: {statusLabel}</span>}
           {filters.priority && <span className="page-chip">Приоритет: {priorityLabel}</span>}
           {showDataSource && sourceName && <span className="page-chip">Источник: {sourceName}</span>}
@@ -166,29 +165,14 @@ export function CardFiltersPanel({
         {expanded && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 pt-3 border-t border-slate-100">
             <div>
-              <label className="label">Месяц</label>
+              <label className="label">Спринт</label>
               <select
                 className="input"
-                value={filters.month}
-                onChange={(e) => onChange('month', e.target.value)}
+                value={filters.sprintId}
+                onChange={(e) => onChange('sprintId', e.target.value)}
               >
-                {Array.from({ length: 12 }, (_, index) => (
-                  <option key={index + 1} value={index + 1}>
-                    {getMonthName(index + 1)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="label">Год</label>
-              <select
-                className="input"
-                value={filters.year}
-                onChange={(e) => onChange('year', e.target.value)}
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>{year}</option>
+                {sprints?.map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
                 ))}
               </select>
             </div>

@@ -40,7 +40,7 @@ export class UsersController {
   @Get('directory')
   // Все авторизованные пользователи могут получить список для назначения на карточки
   findDirectory() {
-    return this.usersService.findAll();
+    return this.usersService.findDirectory();
   }
 
   @Patch('profile')

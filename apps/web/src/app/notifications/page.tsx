@@ -4,20 +4,23 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import {
+  Ban,
   Bell,
   BellRing,
   CheckCheck,
   CheckCircle2,
   ClipboardCheck,
+  CornerDownLeft,
   FileStack,
   Inbox,
   MessageSquareText,
   RefreshCw,
+  Reply,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { notificationsApi, NotificationItem } from '@/lib/api/notifications';
-import { formatDateTime, formatRelative, getMonthName } from '@/lib/utils';
+import { formatDateTime, formatRelative } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -34,6 +37,11 @@ const notificationTypeMeta: Record<
     label: 'Статус',
     icon: RefreshCw,
     accent: 'text-slate-700 bg-slate-50 border-slate-200',
+  },
+  CARD_UPDATED: {
+    label: 'Карточка',
+    icon: RefreshCw,
+    accent: 'text-cyan-700 bg-cyan-50 border-cyan-100',
   },
   REVIEW_REQUEST: {
     label: 'Проверка',
@@ -60,10 +68,25 @@ const notificationTypeMeta: Record<
     icon: Inbox,
     accent: 'text-fuchsia-700 bg-fuchsia-50 border-fuchsia-100',
   },
+  ADMIN_REQUEST_NEEDS_INFO: {
+    label: 'Уточнение',
+    icon: CornerDownLeft,
+    accent: 'text-blue-700 bg-blue-50 border-blue-100',
+  },
+  ADMIN_REQUEST_REPLIED: {
+    label: 'Уточнение',
+    icon: Reply,
+    accent: 'text-indigo-700 bg-indigo-50 border-indigo-100',
+  },
   ADMIN_REQUEST_COMPLETED: {
     label: 'Обращение',
     icon: CheckCircle2,
     accent: 'text-emerald-700 bg-emerald-50 border-emerald-100',
+  },
+  ADMIN_REQUEST_REJECTED: {
+    label: 'Обращение',
+    icon: Ban,
+    accent: 'text-rose-700 bg-rose-50 border-rose-100',
   },
 };
 
@@ -88,6 +111,14 @@ function NotificationRow({
       ? `${notification.adminRequest.description.slice(0, 117)}...`
       : notification.adminRequest.description
     : null;
+  const adminRequestStatusLabel =
+    notification.adminRequest?.status === 'DONE'
+      ? 'Выполнено'
+      : notification.adminRequest?.status === 'CLARIFICATION_REQUIRED'
+      ? 'На уточнении'
+      : notification.adminRequest?.status === 'REJECTED'
+      ? 'Отклонено'
+      : 'Новое';
 
   return (
     <div
@@ -127,7 +158,7 @@ function NotificationRow({
                 <span className="truncate">{cardName}</span>
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Период: {getMonthName(notification.card.month)} {notification.card.year}
+                Спринт: {notification.card.sprint?.name || 'Не назначен'}
                 {notification.actor?.fullName ? ` • Изменение: ${notification.actor.fullName}` : ''}
                 {' • '}
                 {formatDateTime(notification.createdAt)}
@@ -143,7 +174,7 @@ function NotificationRow({
                 <span className="truncate">{requestName}</span>
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Статус: {notification.adminRequest.status === 'DONE' ? 'Выполнено' : 'Новое'}
+                Статус: {adminRequestStatusLabel}
                 {notification.adminRequest.createdBy?.fullName ? ` • Автор: ${notification.adminRequest.createdBy.fullName}` : ''}
                 {notification.actor?.fullName ? ` • Изменение: ${notification.actor.fullName}` : ''}
                 {' • '}
@@ -230,30 +261,36 @@ export default function NotificationsPage() {
   return (
     <AppLayout>
       <div className="page-container-wide">
-        <div className="page-header">
-          <div>
-            <h1 className="section-title">Центр уведомлений</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Все изменения по карточкам и обращениям, которые требуют вашего внимания, в одном месте.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setUnreadOnly((prev) => !prev)}
-              className={cn('btn-secondary', unreadOnly && 'border-blue-200 bg-blue-50 text-blue-700')}
-            >
-              {unreadOnly ? 'Показать все' : 'Только новые'}
-            </button>
-            <button
-              type="button"
-              onClick={() => markAllAsReadMutation.mutate()}
-              className="btn-primary"
-              disabled={markAllAsReadMutation.isPending}
-            >
-              <CheckCheck className="h-4 w-4" />
-              Прочитать всё
-            </button>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Коммуникации</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Уведомления</h1>
+                <p className="page-subtitle">
+                  Все изменения по карточкам и обращениям, которые требуют вашего внимания, собраны в одном месте.
+                </p>
+              </div>
+
+              <div className="card-action-toolbar">
+                <button
+                  type="button"
+                  onClick={() => setUnreadOnly((prev) => !prev)}
+                  className={cn('toolbar-button toolbar-button-secondary', unreadOnly && 'toolbar-button-active')}
+                >
+                  {unreadOnly ? 'Показать все' : 'Только новые'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => markAllAsReadMutation.mutate()}
+                  className="toolbar-button toolbar-button-primary"
+                  disabled={markAllAsReadMutation.isPending}
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Прочитать всё
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

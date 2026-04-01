@@ -1,18 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Loader2, LockKeyhole, Mail, Phone, User, UserRound } from 'lucide-react';
+import { Loader2, MoonStar, SunMedium } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { usersApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store/auth.store';
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: 'Администратор системы',
-  MANAGER: 'Руководитель',
-  USER: 'Пользователь',
-};
 
 function formatPhoneInput(value: string): string {
   const digits = value.replace(/\D/g, '');
@@ -69,6 +63,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [position, setPosition] = useState(user?.position || '');
   const [phone, setPhone] = useState(normalizePhoneForSave(user?.phone || ''));
+  const [themePreference, setThemePreference] = useState<'LIGHT' | 'DARK'>(user?.themePreference === 'DARK' ? 'DARK' : 'LIGHT');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -91,6 +86,19 @@ export default function ProfilePage() {
       toast.success('Пароль успешно обновлён');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Ошибка'),
+  });
+
+  const themeMutation = useMutation({
+    mutationFn: (dto: { themePreference: 'LIGHT' | 'DARK' }) => usersApi.updateProfile(dto),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+      setThemePreference(updatedUser.themePreference === 'DARK' ? 'DARK' : 'LIGHT');
+      toast.success('Тема интерфейса обновлена');
+    },
+    onError: (err: any) => {
+      setThemePreference(user?.themePreference === 'DARK' ? 'DARK' : 'LIGHT');
+      toast.error(err?.response?.data?.message || 'Ошибка');
+    },
   });
 
   const handleProfileSave = () => {
@@ -135,33 +143,27 @@ export default function ProfilePage() {
     fullName !== (user?.fullName || '') ||
     position !== (user?.position || '') ||
     normalizePhoneForSave(phone) !== normalizePhoneForSave(user?.phone || '');
+  const hasThemeChanges = themePreference !== (user?.themePreference === 'DARK' ? 'DARK' : 'LIGHT');
+
+  useEffect(() => {
+    setThemePreference(user?.themePreference === 'DARK' ? 'DARK' : 'LIGHT');
+  }, [user?.themePreference]);
 
   return (
     <AppLayout>
-      <div className="page-container max-w-5xl">
+      <div className="page-container-wide">
         <div className="page-hero">
           <div className="page-hero-body">
             <div className="page-kicker">Личный кабинет</div>
             <div className="page-title-row">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="section-title text-2xl md:text-[30px]">Мой профиль</h1>
                 <p className="page-subtitle">
-                  Управление персональными данными и безопасностью учётной записи. Основные данные и пароль
-                  сохраняются отдельно, чтобы изменения были предсказуемыми и не мешали друг другу.
+                  Управление персональными данными, оформлением и безопасностью учётной записи.
                 </p>
-                <div className="page-chip-row">
-                  <span className="page-chip">
-                    <UserRound className="w-3.5 h-3.5" />
-                    {user?.role ? (ROLE_LABELS[user.role] || user.role) : 'Пользователь'}
-                  </span>
-                  <span className="page-chip">
-                    <Mail className="w-3.5 h-3.5" />
-                    {user?.email || '—'}
-                  </span>
-                </div>
               </div>
 
-              <div className="meta-panel min-w-[260px]">
+              <div className="meta-panel w-full xl:w-[340px] xl:flex-shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-sm">
                     <span className="text-xl font-bold">
@@ -181,7 +183,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
           <div className="section-surface">
             <div className="section-surface-header">
               <div>
@@ -261,6 +263,51 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-4">
+            <div className="section-surface">
+              <div className="section-surface-header">
+                <div>
+                  <div className="section-surface-title">Оформление</div>
+                  <div className="section-surface-subtitle">Выбери удобную тему интерфейса</div>
+                </div>
+              </div>
+
+              <div className="card-body space-y-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    className={`theme-choice ${themePreference === 'LIGHT' ? 'theme-choice-active' : ''}`}
+                    onClick={() => setThemePreference('LIGHT')}
+                  >
+                    <SunMedium className="h-4 w-4" />
+                    <span>Светлая тема</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`theme-choice ${themePreference === 'DARK' ? 'theme-choice-active' : ''}`}
+                    onClick={() => setThemePreference('DARK')}
+                  >
+                    <MoonStar className="h-4 w-4" />
+                    <span>Тёмная тема</span>
+                  </button>
+                </div>
+
+                <div className="form-actions">
+                  <button
+                    className="btn-secondary"
+                    onClick={() => themeMutation.mutate({ themePreference })}
+                    disabled={themeMutation.isPending || !hasThemeChanges}
+                  >
+                    {themeMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Сохранение...
+                      </>
+                    ) : 'Сохранить тему'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="section-surface">
               <div className="section-surface-header">
                 <div>

@@ -1,8 +1,8 @@
 import {
-  IsBoolean, IsEnum, IsInt, IsISO8601, IsOptional, IsString, IsUUID, Max, Min, MaxLength,
+  IsBoolean, IsEnum, IsISO8601, IsOptional, IsString, IsUUID, MaxLength,
 } from 'class-validator';
 import { CardPriority } from '@prisma/client';
-import { Type, Transform } from 'class-transformer';
+import { Transform } from 'class-transformer';
 
 const toBool = ({ value }: { value: any }) => value === true || value === 'true';
 
@@ -17,18 +17,8 @@ export class UpdateCardDto {
   extraTitle?: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(12)
-  @Type(() => Number)
-  month?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(2000)
-  @Max(2100)
-  @Type(() => Number)
-  year?: number;
+  @IsUUID()
+  sprintId?: string;
 
   @IsOptional()
   @IsString()

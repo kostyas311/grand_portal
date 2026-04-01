@@ -3,8 +3,7 @@ import { apiClient } from './client';
 export interface CardsFilter {
   status?: string | string[];
   dataSourceId?: string;
-  month?: number;
-  year?: number;
+  sprintId?: string;
   priority?: string;
   dueFilter?: 'overdue' | 'today' | 'next7' | 'next30' | 'none';
   dueDateFrom?: string;
@@ -38,9 +37,8 @@ export const cardsApi = {
 
   create: async (dto: {
     dataSourceId?: string;
+    sprintId?: string;
     extraTitle?: string;
-    month: number;
-    year: number;
     description?: string;
     priority?: string;
     dueDate?: string;
@@ -56,9 +54,8 @@ export const cardsApi = {
 
   update: async (id: string, dto: Partial<{
     dataSourceId?: string;
+    sprintId?: string;
     extraTitle: string;
-    month: number;
-    year: number;
     description: string;
     priority: string;
     dueDate: string;
@@ -84,7 +81,7 @@ export const cardsApi = {
     return data;
   },
 
-  getStats: async (filter: { month?: number; year?: number; dueDateFrom?: string; dueDateTo?: string } = {}) => {
+  getStats: async (filter: { sprintId?: string; dueDateFrom?: string; dueDateTo?: string } = {}) => {
     const { data } = await apiClient.get('/cards/stats', { params: filter });
     return data as Record<string, number>;
   },

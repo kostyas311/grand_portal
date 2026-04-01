@@ -10,11 +10,11 @@ import { formatDate, getDueDateIndicator } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
 
 const COLUMNS = [
-  { status: 'NEW', label: 'Новое', headerCls: 'bg-blue-100 border-blue-300', bodyCls: 'bg-blue-50/40 border-blue-200' },
-  { status: 'IN_PROGRESS', label: 'В работе', headerCls: 'bg-orange-100 border-orange-300', bodyCls: 'bg-orange-50/40 border-orange-200' },
-  { status: 'REVIEW', label: 'На проверке', headerCls: 'bg-purple-100 border-purple-300', bodyCls: 'bg-purple-50/40 border-purple-200' },
-  { status: 'DONE', label: 'Готово', headerCls: 'bg-green-100 border-green-300', bodyCls: 'bg-green-50/40 border-green-200' },
-  { status: 'CANCELLED', label: 'Отменено', headerCls: 'bg-gray-100 border-gray-300', bodyCls: 'bg-gray-50/40 border-gray-200' },
+  { status: 'NEW', label: 'Новое', headerCls: 'kanban-status-new-header', bodyCls: 'kanban-status-new-body' },
+  { status: 'IN_PROGRESS', label: 'В работе', headerCls: 'kanban-status-in-progress-header', bodyCls: 'kanban-status-in-progress-body' },
+  { status: 'REVIEW', label: 'На проверке', headerCls: 'kanban-status-review-header', bodyCls: 'kanban-status-review-body' },
+  { status: 'DONE', label: 'Готово', headerCls: 'kanban-status-done-header', bodyCls: 'kanban-status-done-body' },
+  { status: 'CANCELLED', label: 'Отменено', headerCls: 'kanban-status-cancelled-header', bodyCls: 'kanban-status-cancelled-body' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
@@ -208,7 +208,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
           <div className="rounded-xl border border-dashed border-slate-300 bg-white/70 px-6 py-16 text-center">
             <div className="text-sm font-medium text-slate-700">Нет карточек для отображения</div>
             <div className="text-sm text-gray-500 mt-1">
-              Попробуйте изменить фильтры или переключить период.
+              Попробуйте изменить фильтры или выбрать другой спринт.
             </div>
           </div>
         ) : (
@@ -226,8 +226,8 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
               onDrop={(e) => handleDrop(e, col.status)}
             >
               <div className={`kanban-column-header border-b-2 ${col.headerCls}`}>
-                <span className="font-semibold text-sm text-gray-700">{col.label}</span>
-                <span className="text-xs bg-white/70 rounded-full px-2 py-0.5 text-gray-500 font-medium">
+                <span className="kanban-column-title">{col.label}</span>
+                <span className="kanban-column-count">
                   {colCards.length}
                 </span>
               </div>
@@ -236,6 +236,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                 {colCards.map((card) => {
                   const ind = getDueDateIndicator(card.dueDate, card.status);
                   const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
+                  const hasChildren = (card.children?.length ?? 0) > 0;
                   return (
                     <div
                       key={card.id}
@@ -249,10 +250,12 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                         ind === 'red' ? 'border-l-4 border-l-red-400 border-t border-r border-b border-gray-200' :
                         ind === 'orange' ? 'border-l-4 border-l-orange-400 border-t border-r border-b border-gray-200' :
                         'border-gray-200'
+                      } ${
+                        hasChildren ? 'kanban-card-parent' : ''
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className="font-mono text-[10px] text-gray-400">{card.publicId}</span>
+                        <span className="kanban-card-id">{card.publicId}</span>
                         {card.priority && card.priority !== 'NORMAL' && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLORS[card.priority] || ''}`}>
                             {PRIORITY_LABELS[card.priority] || card.priority}
@@ -267,25 +270,25 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                           </span>
                         </div>
                       )}
-                      <p className="text-sm font-medium text-gray-800 line-clamp-2 leading-snug">
+                      <p className={`kanban-card-title ${hasChildren ? 'kanban-parent-title' : ''}`}>
                         {card.dataSource?.name || '—'}
                         {card.extraTitle && (
-                          <span className="text-gray-500 font-normal"> — {card.extraTitle}</span>
+                          <span className="kanban-card-subtitle"> — {card.extraTitle}</span>
                         )}
                       </p>
                       {card.dueDate && (
-                        <p className={`text-xs mt-1.5 ${ind === 'red' ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                        <p className={`kanban-card-meta mt-1.5 ${ind === 'red' ? 'text-red-500 font-medium' : ''}`}>
                           Срок: {formatDate(card.dueDate)}
                         </p>
                       )}
                       {card.executor && (
-                        <p className="text-xs text-gray-400 mt-1 truncate">{card.executor.fullName}</p>
+                        <p className="kanban-card-meta mt-1 truncate">{card.executor.fullName}</p>
                       )}
                     </div>
                   );
                 })}
                 {colCards.length === 0 && !isOver && (
-                  <div className="text-center py-6 text-xs text-gray-400">Пусто</div>
+                  <div className="kanban-empty-state">Пусто</div>
                 )}
                 {isOver && (
                   <div className="border-2 border-dashed border-primary/40 rounded-md h-16 flex items-center justify-center text-xs text-primary/60">

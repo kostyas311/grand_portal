@@ -19,9 +19,11 @@ import { ChangeStatusDto } from './dto/change-status.dto';
 import { AssignDto } from './dto/assign.dto';
 import { CardsFilterDto } from './dto/cards-filter.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SprintsService } from '../sprints/sprints.service';
 
 const CARD_INCLUDE = {
   dataSource: { select: { id: true, name: true } },
+  sprint: { select: { id: true, name: true, startDate: true, endDate: true, status: true } },
   executor: { select: { id: true, fullName: true, email: true } },
   reviewer: { select: { id: true, fullName: true, email: true } },
   createdBy: { select: { id: true, fullName: true } },
@@ -41,9 +43,11 @@ export class CardsService {
   constructor(
     private prisma: PrismaService,
     private notifications: NotificationsService,
+    private sprintsService: SprintsService,
   ) {}
 
   async findAll(filter: CardsFilterDto, userId: string, userRole: UserRole) {
+    await this.sprintsService.ensureLegacyCardSprints();
     const where: any = {};
 
     if (filter.status) {
@@ -52,8 +56,7 @@ export class CardsService {
         : filter.status;
     }
     if (filter.dataSourceId) where.dataSourceId = filter.dataSourceId;
-    if (filter.month) where.month = filter.month;
-    if (filter.year) where.year = filter.year;
+    if (filter.sprintId) where.sprintId = filter.sprintId;
     if (filter.priority) where.priority = filter.priority;
     // When explicitly filtering for CANCELLED, include archived cards
     const isCancelledFilter = filter.status === CardStatus.CANCELLED ||
@@ -117,11 +120,30 @@ export class CardsService {
               ],
             },
             {
-              watchers: {
-                some: { userId, source: WatchSource.MANUAL },
-              },
+              AND: [
+                { createdById: { not: userId } },
+                {
+                  watchers: {
+                    some: { userId, source: WatchSource.MANUAL },
+                  },
+                },
+              ],
             },
           ],
+        },
+        {
+          NOT: {
+            AND: [
+              { reviewerId: userId },
+              { status: { not: CardStatus.REVIEW } },
+              { executorId: { not: userId } },
+              {
+                watchers: {
+                  none: { userId, source: WatchSource.MANUAL },
+                },
+              },
+            ],
+          },
         },
       ];
     }
@@ -157,15 +179,15 @@ export class CardsService {
     };
   }
 
-  async findDone(filter: { search?: string; dataSourceId?: string; month?: number; year?: number; page?: number; limit?: number; sortOrder?: 'asc' | 'desc' }) {
+  async findDone(filter: { search?: string; dataSourceId?: string; sprintId?: string; page?: number; limit?: number; sortOrder?: 'asc' | 'desc' }) {
+    await this.sprintsService.ensureLegacyCardSprints();
     const where: any = {
       status: CardStatus.DONE,
       isArchived: false,
     };
 
     if (filter.dataSourceId) where.dataSourceId = filter.dataSourceId;
-    if (filter.month) where.month = filter.month;
-    if (filter.year) where.year = filter.year;
+    if (filter.sprintId) where.sprintId = filter.sprintId;
     if (filter.search) {
       where.OR = [
         { extraTitle: { contains: filter.search, mode: 'insensitive' } },
@@ -187,7 +209,7 @@ export class CardsService {
             include: { items: true },
           },
         },
-        orderBy: [{ year: filter.sortOrder || 'desc' }, { month: filter.sortOrder || 'desc' }],
+        orderBy: [{ sprint: { startDate: filter.sortOrder || 'desc' } }, { updatedAt: 'desc' }],
         skip,
         take: limit,
       }),
@@ -198,6 +220,7 @@ export class CardsService {
   }
 
   async findById(id: string) {
+    await this.sprintsService.ensureLegacyCardSprints();
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id }, { publicId: id }] },
       include: {
@@ -241,6 +264,8 @@ export class CardsService {
 
   async create(dto: CreateCardDto, userId: string) {
     const publicId = await this.generatePublicId();
+    await this.assertAssignableUsers(dto.executorId, dto.reviewerId);
+    const sprint = await this.resolveSprint(dto.sprintId);
 
     // Resolve parent UUID if provided
     let parentId: string | undefined;
@@ -253,9 +278,10 @@ export class CardsService {
       data: {
         publicId,
         dataSourceId: dto.dataSourceId,
+        sprintId: sprint.id,
         extraTitle: dto.extraTitle,
-        month: dto.month,
-        year: dto.year,
+        month: sprint.month,
+        year: sprint.year,
         description: dto.description,
         priority: dto.priority || CardPriority.NORMAL,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
@@ -277,6 +303,24 @@ export class CardsService {
         source: WatchSource.AUTO,
       },
     });
+
+    if (card.dataSourceId) {
+      const sourceInstructions = await this.prisma.dataSourceInstruction.findMany({
+        where: { dataSourceId: card.dataSourceId },
+        select: { instructionId: true },
+      });
+
+      if (sourceInstructions.length > 0) {
+        await this.prisma.cardInstruction.createMany({
+          data: sourceInstructions.map((link) => ({
+            cardId: card.id,
+            instructionId: link.instructionId,
+            createdById: userId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     await this.logHistory(card.id, userId, HistoryAction.CREATED, null, {
       status: CardStatus.NEW,
@@ -310,14 +354,16 @@ export class CardsService {
     const card = await this.findById(id);
     this.assertNotLocked(card);
     this.assertCanEditWorkingCard(card, userId, userRole);
+    const sprint = dto.sprintId ? await this.resolveSprint(dto.sprintId) : null;
 
     const updated = await this.prisma.card.update({
       where: { id: card.id },
       data: {
         dataSourceId: dto.dataSourceId,
+        sprintId: sprint?.id,
         extraTitle: dto.extraTitle,
-        month: dto.month,
-        year: dto.year,
+        month: sprint?.month,
+        year: sprint?.year,
         description: dto.description,
         priority: dto.priority,
         dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
@@ -330,6 +376,14 @@ export class CardsService {
 
     await this.logHistory(card.id, userId, HistoryAction.FIELD_UPDATED, null, {
       fields: Object.keys(dto),
+    });
+
+    await this.notifications.createForCardEvent(card.id, {
+      type: NotificationType.CARD_UPDATED,
+      title: 'Карточка обновлена',
+      message: `Обновлены данные карточки «${this.getCardDisplayName(updated)}».`,
+      actorId: userId,
+      excludeUserIds: [userId],
     });
 
     return updated;
@@ -403,17 +457,17 @@ export class CardsService {
       excludeUserIds: [userId],
     });
 
-    // If returned with errors — add review comment
-    if (action === HistoryAction.RETURNED_WITH_ERRORS && dto.comment) {
+    if (dto.comment?.trim()) {
       const currentVersion = await this.prisma.resultVersion.findFirst({
         where: { cardId: card.id, isCurrent: true },
       });
+
       await this.prisma.reviewComment.create({
         data: {
           cardId: card.id,
           authorId: userId,
           resultVersionId: currentVersion?.id,
-          text: dto.comment,
+          text: dto.comment.trim(),
         },
       });
     }
@@ -424,6 +478,19 @@ export class CardsService {
   async assign(id: string, dto: AssignDto, userId: string) {
     const card = await this.findById(id);
     this.assertNotLocked(card);
+
+    const nextExecutorId =
+      dto.executorId !== undefined ? dto.executorId : card.executorId;
+    const nextReviewerId =
+      dto.reviewerId !== undefined ? dto.reviewerId : card.reviewerId;
+
+    if (!nextExecutorId || !nextReviewerId) {
+      throw new BadRequestException(
+        'У карточки обязательно должны быть назначены и исполнитель, и проверяющий',
+      );
+    }
+
+    await this.assertAssignableUsers(nextExecutorId, nextReviewerId);
 
     const updateData: any = { lastChangedById: userId };
     if (dto.executorId !== undefined) {
@@ -507,10 +574,10 @@ export class CardsService {
     return { watching: !!watcher, watcherCount: count };
   }
 
-  async getStats(filter: { month?: number; year?: number; dueDateFrom?: string; dueDateTo?: string }) {
+  async getStats(filter: { sprintId?: string; dueDateFrom?: string; dueDateTo?: string }) {
+    await this.sprintsService.ensureLegacyCardSprints();
     const where: any = {};
-    if (filter.month) where.month = filter.month;
-    if (filter.year) where.year = filter.year;
+    if (filter.sprintId) where.sprintId = filter.sprintId;
     if (filter.dueDateFrom || filter.dueDateTo) {
       where.dueDate = {};
       if (filter.dueDateFrom) where.dueDate.gte = new Date(filter.dueDateFrom);
@@ -621,12 +688,14 @@ export class CardsService {
           'Невозможно отправить на проверку без результата. Сначала загрузите результат.',
         );
       }
-      // All child cards must be DONE before parent can go to REVIEW
+      // All child cards must be closed (DONE or CANCELLED) before parent can go to REVIEW
       if (card.children && card.children.length > 0) {
-        const notDone = card.children.filter((c: any) => c.status !== CardStatus.DONE);
-        if (notDone.length > 0) {
+        const notClosed = card.children.filter(
+          (c: any) => ![CardStatus.DONE, CardStatus.CANCELLED].includes(c.status),
+        );
+        if (notClosed.length > 0) {
           throw new BadRequestException(
-            `Нельзя отправить на проверку: ${notDone.length} дочерних карточек не завершены. Сначала завершите все дочерние карточки.`,
+            `Нельзя отправить на проверку: ${notClosed.length} дочерних карточек ещё не закрыты. Сначала завершите или отмените все дочерние карточки.`,
           );
         }
       }
@@ -703,9 +772,31 @@ export class CardsService {
       case 'reviewer': return [{ reviewer: { fullName: order } }];
       case 'createdAt': return [{ createdAt: order }];
       case 'updatedAt': return [{ updatedAt: order }];
-      case 'year': return [{ year: order }, { month: order }];
+      case 'sprint': return [{ sprint: { startDate: order } }, { updatedAt: 'desc' as const }];
       default: return [{ updatedAt: 'desc' as const }];
     }
+  }
+
+  private async resolveSprint(sprintId?: string) {
+    const sprint = sprintId
+      ? await this.prisma.sprint.findUnique({ where: { id: sprintId } })
+      : await this.sprintsService.getCurrentOrThrow();
+
+    if (!sprint) {
+      throw new BadRequestException('Спринт не найден');
+    }
+
+    return {
+      ...sprint,
+      ...this.getMonthYearFromDate(sprint.startDate),
+    };
+  }
+
+  private getMonthYearFromDate(date: Date) {
+    return {
+      month: date.getUTCMonth() + 1,
+      year: date.getUTCFullYear(),
+    };
   }
 
   private getCardDisplayName(card: any) {
@@ -742,6 +833,37 @@ export class CardsService {
         return `Карточка «${baseName}» была отменена.${commentSuffix}`;
       default:
         return `Статус карточки «${baseName}» изменён.${commentSuffix}`;
+    }
+  }
+
+  private async assertAssignableUsers(executorId: string, reviewerId: string) {
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: [executorId, reviewerId] },
+      },
+      select: {
+        id: true,
+        fullName: true,
+        isActive: true,
+        role: true,
+      },
+    });
+
+    const executor = users.find((user) => user.id === executorId);
+    const reviewer = users.find((user) => user.id === reviewerId);
+
+    if (!executor || !executor.isActive) {
+      throw new BadRequestException('Исполнитель должен быть выбран из активных пользователей');
+    }
+
+    if (!reviewer || !reviewer.isActive) {
+      throw new BadRequestException('Проверяющий должен быть выбран из активных пользователей');
+    }
+
+    if (executor.role === UserRole.ADMIN || reviewer.role === UserRole.ADMIN) {
+      throw new BadRequestException(
+        'Администратор не может быть исполнителем или проверяющим по карточке',
+      );
     }
   }
 }

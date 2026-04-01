@@ -11,6 +11,23 @@ export class CommentsService {
     private notifications: NotificationsService,
   ) {}
 
+  private getCardDisplayName(card: {
+    publicId: string;
+    extraTitle?: string | null;
+    dataSourceId?: string | null;
+  }) {
+    return card.extraTitle || card.publicId;
+  }
+
+  private formatCommentForNotification(text: string) {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return '';
+    }
+
+    return normalized.length > 220 ? `${normalized.slice(0, 217)}...` : normalized;
+  }
+
   private async resolveCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
@@ -63,8 +80,9 @@ export class CommentsService {
     await this.notifications.createForCardEvent(card.id, {
       type: NotificationType.COMMENT_ADDED,
       title: 'Новый комментарий по карточке',
-      message: `По карточке «${card.extraTitle || card.publicId}» появился новый комментарий.${dto.text ? ` ${dto.text}` : ''}`,
+      message: `По карточке «${this.getCardDisplayName(card)}» оставлен комментарий: «${this.formatCommentForNotification(dto.text)}»`,
       actorId: userId,
+      extraUserIds: [card.createdById, card.executorId, card.reviewerId],
       excludeUserIds: [userId],
     });
 

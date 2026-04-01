@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { InstructionStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateDataSourceDto } from './dto/create-data-source.dto';
 import { UpdateDataSourceDto } from './dto/update-data-source.dto';
@@ -20,7 +27,7 @@ export class DataSourcesService {
         createdBy: {
           select: { id: true, fullName: true },
         },
-        _count: { select: { cards: true } },
+        _count: { select: { cards: true, instructionLinks: true } },
       },
     });
   }
@@ -30,7 +37,7 @@ export class DataSourcesService {
       where: { id },
       include: {
         createdBy: { select: { id: true, fullName: true } },
-        _count: { select: { cards: true } },
+        _count: { select: { cards: true, instructionLinks: true } },
       },
     });
     if (!source) throw new NotFoundException('Источник данных не найден');
@@ -95,5 +102,107 @@ export class DataSourcesService {
     }
     await this.prisma.dataSource.delete({ where: { id } });
     return { message: 'Источник удалён' };
+  }
+
+  async getInstructions(id: string) {
+    const source = await this.findById(id);
+
+    return this.prisma.dataSourceInstruction.findMany({
+      where: { dataSourceId: source.id },
+      include: {
+        instruction: {
+          include: {
+            folder: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, fullName: true } },
+            _count: {
+              select: {
+                attachments: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async attachInstruction(
+    id: string,
+    instructionId: string,
+    userId: string,
+    userRole?: UserRole,
+  ) {
+    this.assertCanManageInstructions(userRole);
+    const source = await this.findById(id);
+
+    const instruction = await this.prisma.instruction.findFirst({
+      where: {
+        OR: [{ id: instructionId }, { publicId: instructionId }],
+      },
+    });
+
+    if (!instruction) {
+      throw new NotFoundException('Инструкция не найдена');
+    }
+
+    if (instruction.status !== InstructionStatus.PUBLISHED) {
+      throw new BadRequestException('К источнику можно прикрепить только опубликованную инструкцию');
+    }
+
+    return this.prisma.dataSourceInstruction.upsert({
+      where: {
+        dataSourceId_instructionId: {
+          dataSourceId: source.id,
+          instructionId: instruction.id,
+        },
+      },
+      update: {},
+      create: {
+        dataSourceId: source.id,
+        instructionId: instruction.id,
+        createdById: userId,
+      },
+      include: {
+        instruction: {
+          include: {
+            folder: { select: { id: true, name: true } },
+            createdBy: { select: { id: true, fullName: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async detachInstruction(
+    id: string,
+    instructionId: string,
+    userRole?: UserRole,
+  ) {
+    this.assertCanManageInstructions(userRole);
+    const source = await this.findById(id);
+
+    const link = await this.prisma.dataSourceInstruction.findFirst({
+      where: {
+        dataSourceId: source.id,
+        instruction: {
+          OR: [{ id: instructionId }, { publicId: instructionId }],
+        },
+      },
+    });
+
+    if (!link) {
+      throw new NotFoundException('Инструкция не прикреплена к источнику');
+    }
+
+    await this.prisma.dataSourceInstruction.delete({ where: { id: link.id } });
+    return { message: 'Инструкция откреплена от источника' };
+  }
+
+  private assertCanManageInstructions(userRole?: UserRole) {
+    if (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) {
+      return;
+    }
+
+    throw new ForbiddenException('Недостаточно прав для управления инструкциями источника');
   }
 }

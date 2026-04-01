@@ -9,6 +9,7 @@ export interface User {
   fullName: string;
   email: string;
   role: 'USER' | 'MANAGER' | 'ADMIN';
+  themePreference?: 'LIGHT' | 'DARK';
   isActive: boolean;
   position?: string;
   phone?: string;

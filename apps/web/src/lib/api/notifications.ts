@@ -5,8 +5,10 @@ export interface NotificationCardSummary {
   publicId: string;
   extraTitle?: string | null;
   status: string;
-  month: number;
-  year: number;
+  sprint?: {
+    id: string;
+    name: string;
+  } | null;
   dataSource?: {
     name: string;
   } | null;
@@ -15,7 +17,7 @@ export interface NotificationCardSummary {
 export interface NotificationAdminRequestSummary {
   id: string;
   publicId: string;
-  status: 'NEW' | 'DONE';
+  status: 'NEW' | 'CLARIFICATION_REQUIRED' | 'DONE' | 'REJECTED';
   description: string;
   createdBy: {
     id: string;

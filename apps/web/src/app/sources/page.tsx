@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Search, Archive, ArchiveRestore, Edit, BookOpen, ExternalLink, Trash2, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { SourceInstructionsSidebar } from '@/components/instructions/SourceInstructionsSidebar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { dataSourcesApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -33,6 +34,7 @@ export default function SourcesPage() {
   const [editingSource, setEditingSource] = useState<any | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '', website: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [instructionsSource, setInstructionsSource] = useState<any | null>(null);
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ['data-sources', search, includeArchived],
@@ -95,20 +97,32 @@ export default function SourcesPage() {
   return (
     <AppLayout>
       <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="section-title">Источники нормативно-справочной документации</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Справочник источников входящих данных и документов</p>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Справочники</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">
+                  Источники нормативно-справочной документации
+                </h1>
+                <p className="page-subtitle">
+                  Справочник источников входящих данных, внешних документов и связанных инструкций.
+                </p>
+              </div>
+
+              {canEdit && (
+                <div className="card-action-toolbar">
+                  <button
+                    className="toolbar-button toolbar-button-primary"
+                    onClick={() => { setShowForm(true); setEditingSource(null); setFormData({ name: '', description: '', website: '' }); }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Добавить источник
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-          {canEdit && (
-            <button
-              className="btn-primary"
-              onClick={() => { setShowForm(true); setEditingSource(null); setFormData({ name: '', description: '', website: '' }); }}
-            >
-              <Plus className="w-4 h-4" />
-              Добавить источник
-            </button>
-          )}
         </div>
 
         {/* Filters */}
@@ -189,6 +203,7 @@ export default function SourcesPage() {
                   <th>Название</th>
                   <th>Описание</th>
                   <th>Сайт</th>
+                  <th>Инструкции</th>
                   <th>Карточек</th>
                   <th>Создан</th>
                   <th>Статус</th>
@@ -210,6 +225,7 @@ export default function SourcesPage() {
                           </a>
                         ) : '—'}
                       </td>
+                      <td className="text-gray-500">{source._count?.instructionLinks || 0}</td>
                       <td className="text-gray-500">{source._count?.cards || 0}</td>
                       <td className="text-gray-400 text-xs">{formatDate(source.createdAt)}</td>
                       <td>
@@ -220,6 +236,13 @@ export default function SourcesPage() {
                       {canEdit && (
                         <td>
                           <div className="flex items-center gap-1">
+                            <button
+                              className="btn-icon"
+                              onClick={() => setInstructionsSource(source)}
+                              title="Инструкции источника"
+                            >
+                              <BookOpen className="w-4 h-4" />
+                            </button>
                             <button className="btn-icon" onClick={() => handleEdit(source)} title="Редактировать">
                               <Edit className="w-4 h-4" />
                             </button>
@@ -261,7 +284,7 @@ export default function SourcesPage() {
                     {/* Inline edit row */}
                     {editingSource?.id === source.id && (
                       <tr key={`edit-${source.id}`} className="bg-blue-50">
-                        <td colSpan={canEdit ? 7 : 6} className="p-4">
+                        <td colSpan={canEdit ? 8 : 7} className="p-4">
                           <div className="grid grid-cols-3 gap-3 mb-3">
                             <div>
                               <label className="label label-required">Название</label>
@@ -300,6 +323,15 @@ export default function SourcesPage() {
             </table>
           )}
         </div>
+
+        {instructionsSource && (
+          <SourceInstructionsSidebar
+            sourceId={instructionsSource.id}
+            sourceName={instructionsSource.name}
+            isOpen={!!instructionsSource}
+            onClose={() => setInstructionsSource(null)}
+          />
+        )}
       </div>
     </AppLayout>
   );

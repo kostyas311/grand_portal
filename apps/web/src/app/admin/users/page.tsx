@@ -26,6 +26,13 @@ export default function AdminUsersPage() {
     queryFn: () => usersApi.getAll(search),
   });
 
+  const { data: allUsersForAdminCheck } = useQuery({
+    queryKey: ['users', '__admin-check__'],
+    queryFn: () => usersApi.getAll(),
+  });
+
+  const hasAdmin = !!allUsersForAdminCheck?.some((u: any) => u.role === 'ADMIN');
+
   const createMutation = useMutation({
     mutationFn: () => usersApi.create(newUser),
     onSuccess: () => {
@@ -70,15 +77,25 @@ export default function AdminUsersPage() {
   return (
     <AppLayout>
       <div className="page-container">
-        <div className="page-header">
-          <div>
-            <h1 className="section-title">Управление пользователями</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Создание и управление учётными записями</p>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Администрирование</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Управление пользователями</h1>
+                <p className="page-subtitle">
+                  Создание, блокировка, удаление учётных записей и обслуживание ролевой модели портала.
+                </p>
+              </div>
+
+              <div className="card-action-toolbar">
+                <button className="toolbar-button toolbar-button-primary" onClick={() => setShowCreate(true)}>
+                  <Plus className="w-4 h-4" />
+                  Создать пользователя
+                </button>
+              </div>
+            </div>
           </div>
-          <button className="btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4" />
-            Создать пользователя
-          </button>
         </div>
 
         {/* Search */}
@@ -126,13 +143,18 @@ export default function AdminUsersPage() {
                     onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}>
                     <option value="USER">Пользователь</option>
                     <option value="MANAGER">Руководитель</option>
-                    <option value="ADMIN">Администратор</option>
+                    <option value="ADMIN" disabled={hasAdmin}>Администратор</option>
                   </select>
+                  {hasAdmin && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Администратор в системе уже назначен. Второго создать нельзя.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
                 <button className="btn-primary"
-                  disabled={!newUser.fullName || !newUser.email || !newUser.password}
+                  disabled={!newUser.fullName || !newUser.email || !newUser.password || (newUser.role === 'ADMIN' && hasAdmin)}
                   onClick={() => createMutation.mutate()}>
                   Создать
                 </button>

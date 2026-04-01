@@ -9,17 +9,13 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { cardsApi, dataSourcesApi, usersApi } from '@/lib/api';
-import { getMonthName } from '@/lib/utils';
+import { cardsApi, dataSourcesApi, sprintsApi } from '@/lib/api';
 import { useEffect } from 'react';
-import { CardStatusBadge } from '@/components/cards/CardStatusBadge';
-import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 
 const schema = z.object({
   dataSourceId: z.string().min(1),
+  sprintId: z.string().min(1, 'Выберите спринт'),
   extraTitle: z.string().max(255).optional(),
-  month: z.number().min(1).max(12),
-  year: z.number().min(2000).max(2100),
   description: z.string().optional(),
   priority: z.enum(['OPTIONAL', 'NORMAL', 'URGENT', 'CRITICAL']),
   dueDate: z.string().optional(),
@@ -42,6 +38,11 @@ export default function EditCardPage() {
     queryFn: () => dataSourcesApi.getAll(),
   });
 
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
@@ -50,9 +51,8 @@ export default function EditCardPage() {
     if (card) {
       reset({
         dataSourceId: card.dataSourceId,
+        sprintId: card.sprintId || '',
         extraTitle: card.extraTitle || '',
-        month: card.month,
-        year: card.year,
         description: card.description || '',
         priority: card.priority,
         dueDate: card.dueDate ? new Date(card.dueDate).toISOString().split('T')[0] : '',
@@ -92,8 +92,6 @@ export default function EditCardPage() {
     );
   }
 
-  const years = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - 1 + i);
-
   return (
     <AppLayout>
       <div className="page-container max-w-4xl">
@@ -106,12 +104,7 @@ export default function EditCardPage() {
                 <p className="page-subtitle">
                   Изменения вносятся в рамках единой формы карточки и сразу сохраняют её текущий рабочий контекст.
                 </p>
-                <div className="page-chip-row">
-                  <span className="page-chip font-mono">{card.publicId}</span>
-                  <CardStatusBadge status={card.status} />
-                  <CardPriorityBadge priority={card.priority} />
-                  <span className="page-chip">{getMonthName(card.month)} {card.year}</span>
-                </div>
+                <div className="mt-3 text-sm font-mono text-slate-400">{card.publicId}</div>
               </div>
               <div className="flex items-start">
                 <Link href={`/cards/${card.publicId}`} className="btn-ghost">
@@ -140,25 +133,21 @@ export default function EditCardPage() {
               </div>
 
               <div>
-                <label className="label">Дополнительное название</label>
-                <input type="text" className="input" {...register('extraTitle')} />
+                <label className="label label-required">Спринт</label>
+                <select className={`input ${errors.sprintId ? 'input-error' : ''}`} {...register('sprintId')}>
+                  <option value="">— Выберите спринт —</option>
+                  {sprints.map((sprint: any) => (
+                    <option key={sprint.id} value={sprint.id}>
+                      {sprint.name} {sprint.status === 'IN_PROGRESS' ? '• в процессе' : '• закрыт'}
+                    </option>
+                  ))}
+                </select>
+                {errors.sprintId && <p className="error-message">{errors.sprintId.message}</p>}
               </div>
 
-              <div className="form-grid-2">
-                <div>
-                  <label className="label label-required">Месяц</label>
-                  <select className="input" {...register('month', { valueAsNumber: true })}>
-                    {Array.from({ length: 12 }, (_, i) => (
-                      <option key={i+1} value={i+1}>{getMonthName(i+1)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label label-required">Год</label>
-                  <select className="input" {...register('year', { valueAsNumber: true })}>
-                    {years.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label className="label">Дополнительное название</label>
+                <input type="text" className="input" {...register('extraTitle')} />
               </div>
 
               <div>

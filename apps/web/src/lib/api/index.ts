@@ -4,6 +4,8 @@ export { cardsApi } from './cards';
 export { notificationsApi } from './notifications';
 export { adminRequestsApi } from './adminRequests';
 export { notificationEmailSettingsApi } from './notificationEmailSettings';
+export { instructionsApi } from './instructions';
+export { sprintsApi } from './sprints';
 
 import { apiClient } from './client';
 
@@ -40,7 +42,7 @@ export const usersApi = {
     const { data } = await apiClient.delete(`/users/${id}`);
     return data;
   },
-  updateProfile: async (dto: { fullName?: string; position?: string; phone?: string; password?: string }) => {
+  updateProfile: async (dto: { fullName?: string; position?: string; phone?: string; themePreference?: 'LIGHT' | 'DARK'; password?: string }) => {
     const { data } = await apiClient.patch('/users/profile', dto);
     return data;
   },
@@ -73,6 +75,34 @@ export const dataSourcesApi = {
     const { data } = await apiClient.delete(`/data-sources/${id}`);
     return data;
   },
+  getInstructions: async (id: string) => {
+    const { data } = await apiClient.get(`/data-sources/${id}/instructions`);
+    return data as Array<{
+      id: string;
+      createdAt: string;
+      instruction: {
+        id: string;
+        publicId: string;
+        title: string;
+        summary?: string | null;
+        folder?: {
+          id: string;
+          name: string;
+        } | null;
+        _count?: {
+          attachments: number;
+        };
+      };
+    }>;
+  },
+  attachInstruction: async (id: string, instructionId: string) => {
+    const { data } = await apiClient.post(`/data-sources/${id}/instructions/${instructionId}`);
+    return data;
+  },
+  detachInstruction: async (id: string, instructionId: string) => {
+    const { data } = await apiClient.delete(`/data-sources/${id}/instructions/${instructionId}`);
+    return data;
+  },
 };
 
 export const materialsApi = {
@@ -90,6 +120,26 @@ export const materialsApi = {
     `${process.env.NEXT_PUBLIC_API_URL || '/api'}/cards/${cardId}/materials/${materialId}/download`,
   downloadAllUrl: (cardId: string) =>
     `${process.env.NEXT_PUBLIC_API_URL || '/api'}/cards/${cardId}/materials/download-all`,
+  download: async (cardId: string, materialId: string) => {
+    const response = await apiClient.get(`/cards/${cardId}/materials/${materialId}/download`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: response.data as Blob,
+      contentDisposition: response.headers['content-disposition'] as string | undefined,
+      contentType: response.headers['content-type'] as string | undefined,
+    };
+  },
+  downloadAll: async (cardId: string) => {
+    const response = await apiClient.get(`/cards/${cardId}/materials/download-all`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: response.data as Blob,
+      contentDisposition: response.headers['content-disposition'] as string | undefined,
+      contentType: response.headers['content-type'] as string | undefined,
+    };
+  },
   delete: async (cardId: string, materialId: string) => {
     const { data } = await apiClient.delete(`/cards/${cardId}/materials/${materialId}`);
     return data;
@@ -111,6 +161,26 @@ export const resultsApi = {
     `${process.env.NEXT_PUBLIC_API_URL || '/api'}/cards/${cardId}/results/${versionId}/download-all`,
   downloadItemUrl: (cardId: string, versionId: string, itemId: string) =>
     `${process.env.NEXT_PUBLIC_API_URL || '/api'}/cards/${cardId}/results/${versionId}/items/${itemId}/download`,
+  downloadVersionAll: async (cardId: string, versionId: string) => {
+    const response = await apiClient.get(`/cards/${cardId}/results/${versionId}/download-all`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: response.data as Blob,
+      contentDisposition: response.headers['content-disposition'] as string | undefined,
+      contentType: response.headers['content-type'] as string | undefined,
+    };
+  },
+  downloadItem: async (cardId: string, versionId: string, itemId: string) => {
+    const response = await apiClient.get(`/cards/${cardId}/results/${versionId}/items/${itemId}/download`, {
+      responseType: 'blob',
+    });
+    return {
+      blob: response.data as Blob,
+      contentDisposition: response.headers['content-disposition'] as string | undefined,
+      contentType: response.headers['content-type'] as string | undefined,
+    };
+  },
 };
 
 export const commentsApi = {

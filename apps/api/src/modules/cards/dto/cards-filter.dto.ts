@@ -1,5 +1,5 @@
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
-import { CardStatus, CardPriority } from '@prisma/client';
+import { CardPriority, CardStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 
 // NestJS с enableImplicitConversion конвертирует "true"→true до @Transform,
@@ -16,18 +16,8 @@ export class CardsFilterDto {
   dataSourceId?: string;
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(12)
-  @Type(() => Number)
-  month?: number;
-
-  @IsOptional()
-  @IsInt()
-  @Min(2000)
-  @Max(2100)
-  @Type(() => Number)
-  year?: number;
+  @IsUUID()
+  sprintId?: string;
 
   @IsOptional()
   @IsEnum(CardPriority)

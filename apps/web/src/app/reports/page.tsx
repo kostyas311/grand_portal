@@ -1,12 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { cardsApi } from '@/lib/api';
-import { getMonthName } from '@/lib/utils';
+import { cardsApi, sprintsApi } from '@/lib/api';
 
 const STATUSES = [
   { value: 'NEW', label: 'Новое', color: '#6b7280' },
@@ -17,27 +16,35 @@ const STATUSES = [
 ];
 
 export default function ReportsPage() {
-  const currentDate = new Date();
-  const defaultMonth = String(currentDate.getMonth() + 1);
-  const defaultYear = String(currentDate.getFullYear());
   const [filters, setFilters] = useState({
-    month: defaultMonth,
-    year: defaultYear,
+    sprintId: '',
     dueDateFrom: '',
     dueDateTo: '',
   });
 
+  const { data: sprints = [] } = useQuery({
+    queryKey: ['sprints'],
+    queryFn: () => sprintsApi.getAll(),
+  });
+
+  const currentSprint = sprints.find((sprint) => sprint.status === 'IN_PROGRESS') ?? null;
+  const defaultSprintId = currentSprint?.id || sprints[0]?.id || '';
+
+  useEffect(() => {
+    if (!filters.sprintId && defaultSprintId) {
+      setFilters((prev) => ({ ...prev, sprintId: defaultSprintId }));
+    }
+  }, [defaultSprintId, filters.sprintId]);
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ['card-stats', filters],
     queryFn: () => cardsApi.getStats({
-      month: filters.month ? Number(filters.month) : undefined,
-      year: filters.year ? Number(filters.year) : undefined,
+      sprintId: filters.sprintId || undefined,
       dueDateFrom: filters.dueDateFrom || undefined,
       dueDateTo: filters.dueDateTo || undefined,
     }),
+    enabled: !!filters.sprintId,
   });
-
-  const years = Array.from({ length: 5 }, (_, i) => currentDate.getFullYear() - 2 + i);
 
   const chartData = STATUSES.map(s => ({
     name: s.label,
@@ -48,8 +55,7 @@ export default function ReportsPage() {
 
   const buildCardsLink = (status: string) => {
     const params = new URLSearchParams({ status, view: 'list' });
-    if (filters.month) params.set('month', filters.month);
-    if (filters.year) params.set('year', filters.year);
+    if (filters.sprintId) params.set('sprintId', filters.sprintId);
     if (filters.dueDateFrom) params.set('dueDateFrom', filters.dueDateFrom);
     if (filters.dueDateTo) params.set('dueDateTo', filters.dueDateTo);
     if (status === 'CANCELLED') params.set('isArchived', 'true');
@@ -59,8 +65,18 @@ export default function ReportsPage() {
   return (
     <AppLayout>
       <div className="page-container max-w-4xl">
-        <div className="page-header">
-          <h1 className="section-title">Отчёт по карточкам</h1>
+        <div className="page-hero">
+          <div className="page-hero-body">
+            <div className="page-title-row">
+              <div className="flex-1 min-w-0">
+                <div className="page-kicker">Аналитика</div>
+                <h1 className="mt-4 text-2xl font-semibold text-slate-900">Отчёт по карточкам</h1>
+                <p className="page-subtitle">
+                  Сводная картина по статусам карточек с быстрым переходом в отфильтрованный список выбранного спринта.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -69,23 +85,12 @@ export default function ReportsPage() {
             <div className="filter-bar">
               <select
                 className="input w-auto"
-                value={filters.month}
-                onChange={e => setFilters(f => ({ ...f, month: e.target.value }))}
+                value={filters.sprintId}
+                onChange={e => setFilters(f => ({ ...f, sprintId: e.target.value }))}
               >
-                <option value="">Все месяцы</option>
-                {Array.from({ length: 12 }, (_, i) => (
-                  <option key={i + 1} value={i + 1}>{getMonthName(i + 1)}</option>
-                ))}
-              </select>
-
-              <select
-                className="input w-auto"
-                value={filters.year}
-                onChange={e => setFilters(f => ({ ...f, year: e.target.value }))}
-              >
-                <option value="">Все годы</option>
-                {years.map(y => (
-                  <option key={y} value={y}>{y}</option>
+                <option value="">Все спринты</option>
+                {sprints.map((sprint) => (
+                  <option key={sprint.id} value={sprint.id}>{sprint.name}</option>
                 ))}
               </select>
 
@@ -109,10 +114,10 @@ export default function ReportsPage() {
                 />
               </div>
 
-              {(filters.month !== defaultMonth || filters.year !== defaultYear || filters.dueDateFrom || filters.dueDateTo) && (
+              {(filters.sprintId !== defaultSprintId || filters.dueDateFrom || filters.dueDateTo) && (
                 <button
                   className="btn-secondary text-sm"
-                  onClick={() => setFilters({ month: defaultMonth, year: defaultYear, dueDateFrom: '', dueDateTo: '' })}
+                  onClick={() => setFilters({ sprintId: defaultSprintId, dueDateFrom: '', dueDateTo: '' })}
                 >
                   Сбросить
                 </button>
