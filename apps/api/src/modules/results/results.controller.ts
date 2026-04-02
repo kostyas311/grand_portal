@@ -4,7 +4,6 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { memoryStorage } from 'multer';
 import { UserRole } from '@prisma/client';
 import { ResultsService } from './results.service';
 import { CreateResultVersionDto } from './dto/create-result-version.dto';
@@ -12,6 +11,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminOnly } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { createDiskUploadOptions } from '../../common/utils/upload.util';
 
 @ApiTags('results')
 @ApiBearerAuth()
@@ -26,10 +26,13 @@ export class ResultsController {
   }
 
   @Post()
-  @UseInterceptors(FilesInterceptor('files', 20, {
-    storage: memoryStorage(),
-    limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE || '524288000') },
-  }))
+  @UseInterceptors(
+    FilesInterceptor(
+      'files',
+      20,
+      createDiskUploadOptions(parseInt(process.env.MAX_FILE_SIZE || '524288000', 10), 20),
+    ),
+  )
   createVersion(
     @Param('cardId') cardId: string,
     @Body() dto: CreateResultVersionDto,

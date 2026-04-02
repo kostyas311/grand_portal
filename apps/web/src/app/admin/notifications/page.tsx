@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { notificationEmailSettingsApi } from '@/lib/api';
 import { formatDate, formatRelative } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { displayUserName } from '@/lib/user-display';
 
 type SettingsForm = {
   isEnabled: boolean;
@@ -307,7 +308,7 @@ export default function AdminNotificationsPage() {
                     <div className="mt-1">Относительно: <span className="font-medium text-gray-800">{formatRelative(data.updatedAt)}</span></div>
                     {data.updatedBy && (
                       <div className="mt-1">
-                        Изменил: <span className="font-medium text-gray-800">{data.updatedBy.fullName}</span>
+                        Изменил: <span className="font-medium text-gray-800">{displayUserName(data.updatedBy, user?.id)}</span>
                       </div>
                     )}
                   </>

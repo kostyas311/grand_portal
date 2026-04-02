@@ -9,6 +9,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { cardsApi, dataSourcesApi, resultsApi, sprintsApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { MentionText } from '@/components/shared/MentionText';
 import { useAuthStore } from '@/lib/store/auth.store';
 
 export default function PortalHomePage() {
@@ -227,7 +228,7 @@ export default function PortalHomePage() {
 
                           {card.description && (
                             <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                              {card.description}
+                              <MentionText text={card.description} />
                             </p>
                           )}
 

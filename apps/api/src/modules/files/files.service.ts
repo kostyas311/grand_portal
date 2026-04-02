@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as path from 'path';
 import * as fs from 'fs';
+import { promises as fsp } from 'fs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -49,19 +50,43 @@ export class FilesService {
     const absolutePath = this.getAbsolutePath(relativePath);
 
     // Ensure directory exists
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    await fsp.mkdir(path.dirname(absolutePath), { recursive: true });
 
     // Calculate hash
     const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
     // Write file
-    fs.writeFileSync(absolutePath, fileBuffer);
+    await fsp.writeFile(absolutePath, fileBuffer);
 
     return {
       relativePath,
       fileSize: fileBuffer.length,
       fileHash,
     };
+  }
+
+  async saveUploadedFile(
+    file: Pick<Express.Multer.File, 'path' | 'originalname' | 'size'>,
+    subdir: string,
+  ): Promise<{ relativePath: string; fileSize: number; fileHash: string }> {
+    const relativePath = this.generateStoragePath(subdir, file.originalname);
+    const absolutePath = this.getAbsolutePath(relativePath);
+
+    await fsp.mkdir(path.dirname(absolutePath), { recursive: true });
+
+    try {
+      const fileHash = await this.hashFile(file.path);
+      await this.moveUploadedFile(file.path, absolutePath);
+
+      return {
+        relativePath,
+        fileSize: file.size,
+        fileHash,
+      };
+    } catch (error) {
+      await this.safeDeleteTempFile(file.path);
+      throw error;
+    }
   }
 
   getReadStream(relativePath: string): fs.ReadStream {
@@ -81,27 +106,33 @@ export class FilesService {
     }
   }
 
-  deleteFile(relativePath: string): void {
+  async deleteFile(relativePath: string): Promise<void> {
     try {
       const absolutePath = this.getAbsolutePath(relativePath);
-      if (fs.existsSync(absolutePath)) {
-        fs.unlinkSync(absolutePath);
-      }
+      await fsp.unlink(absolutePath).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') {
+          throw error;
+        }
+      });
     } catch (err) {
       this.logger.warn(`Failed to delete file: ${relativePath}`, err);
     }
   }
 
-  getTotalSize(relativePaths: string[]): number {
-    return relativePaths.reduce((total, p) => {
+  async getTotalSize(relativePaths: string[]): Promise<number> {
+    let total = 0;
+
+    for (const p of relativePaths) {
       try {
         const abs = this.getAbsolutePath(p);
-        const stat = fs.statSync(abs);
-        return total + stat.size;
+        const stat = await fsp.stat(abs);
+        total += stat.size;
       } catch {
-        return total;
+        continue;
       }
-    }, 0);
+    }
+
+    return total;
   }
 
   async createZipStream(
@@ -119,5 +150,35 @@ export class FilesService {
 
     archive.finalize();
     return archive;
+  }
+
+  private async hashFile(filePath: string): Promise<string> {
+    const hash = crypto.createHash('sha256');
+
+    await new Promise<void>((resolve, reject) => {
+      const stream = fs.createReadStream(filePath);
+      stream.on('data', (chunk) => hash.update(chunk));
+      stream.on('end', () => resolve());
+      stream.on('error', reject);
+    });
+
+    return hash.digest('hex');
+  }
+
+  private async safeDeleteTempFile(filePath: string) {
+    await fsp.unlink(filePath).catch(() => undefined);
+  }
+
+  private async moveUploadedFile(sourcePath: string, targetPath: string) {
+    try {
+      await fsp.rename(sourcePath, targetPath);
+    } catch (error: any) {
+      if (error?.code !== 'EXDEV') {
+        throw error;
+      }
+
+      await fsp.copyFile(sourcePath, targetPath);
+      await fsp.unlink(sourcePath);
+    }
   }
 }

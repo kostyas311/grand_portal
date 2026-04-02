@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronDown, ChevronRight, Copy, ExternalLink, FileDown, FolderOpen, Pencil, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Boxes, ChevronDown, ChevronRight, Copy, ExternalLink, FileDown, FolderOpen, Pencil, Search, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { getAccessToken } from '@/lib/api';
 import { InstructionFolderItem, instructionsApi } from '@/lib/api/instructions';
+import { componentsApi } from '@/lib/api/components';
+import { ComponentLocationActions } from '@/components/components/ComponentLocationActions';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { cn, formatFileSize, formatRelative } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 
 interface FolderTreeNode extends InstructionFolderItem {
   children: FolderTreeNode[];
@@ -58,6 +61,124 @@ function extractAttachmentNameFromDisposition(contentDisposition?: string) {
   }
 
   return null;
+}
+
+function extractInstructionComponentRefs(html: string) {
+  if (!html) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      [...html.matchAll(/\{\{\s*([^{}\s]+)\s*\}\}/g)]
+        .map((match) => match[1]?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderInstructionComponentDirectives(
+  html: string,
+  componentMap: Map<string, { id: string; publicId: string; name: string; description?: string | null }>,
+) {
+  if (typeof window === 'undefined' || !html) {
+    return html;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div id="instruction-root">${html}</div>`, 'text/html');
+  const root = doc.getElementById('instruction-root');
+
+  if (!root) {
+    return html;
+  }
+
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const candidates: Text[] = [];
+
+  while (walker.nextNode()) {
+    const textNode = walker.currentNode as Text;
+    const text = textNode.nodeValue || '';
+    if (!text.includes('{{')) {
+      continue;
+    }
+
+    const parent = textNode.parentElement;
+    if (!parent) {
+      continue;
+    }
+
+    if (parent.closest('a, button, code, pre, script, style')) {
+      continue;
+    }
+
+    candidates.push(textNode);
+  }
+
+  candidates.forEach((textNode) => {
+    const text = textNode.nodeValue || '';
+    const regex = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+    const matches = [...text.matchAll(regex)];
+
+    if (!matches.length) {
+      return;
+    }
+
+    const fragment = doc.createDocumentFragment();
+    let lastIndex = 0;
+
+    matches.forEach((match) => {
+      const fullMatch = match[0];
+      const ref = match[1]?.trim();
+      const index = match.index ?? 0;
+
+      if (index > lastIndex) {
+        fragment.appendChild(doc.createTextNode(text.slice(lastIndex, index)));
+      }
+
+      const component = componentMap.get(ref) || null;
+      const targetRef = component?.publicId || component?.id || ref;
+      const title = component?.name || ref;
+      const description = component?.description?.trim() || 'Открыть компонент';
+
+      const wrapper = doc.createElement('a');
+      wrapper.setAttribute('href', '#');
+      wrapper.setAttribute('class', 'instruction-component-link');
+      wrapper.setAttribute('data-component-ref', targetRef);
+      wrapper.setAttribute('title', title);
+
+      const titleNode = doc.createElement('span');
+      titleNode.setAttribute('class', 'instruction-component-link-title');
+      titleNode.textContent = title;
+
+      const descriptionNode = doc.createElement('span');
+      descriptionNode.setAttribute('class', 'instruction-component-link-description');
+      descriptionNode.textContent = description;
+
+      wrapper.appendChild(titleNode);
+      wrapper.appendChild(descriptionNode);
+      fragment.appendChild(wrapper);
+
+      lastIndex = index + fullMatch.length;
+    });
+
+    if (lastIndex < text.length) {
+      fragment.appendChild(doc.createTextNode(text.slice(lastIndex)));
+    }
+
+    textNode.parentNode?.replaceChild(fragment, textNode);
+  });
+
+  return root.innerHTML;
 }
 
 function FolderMoveBranch({
@@ -131,6 +252,7 @@ export default function InstructionDetailPage() {
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showUsageDialog, setShowUsageDialog] = useState(false);
   const [selectedFolderId, setSelectedFolderId] = useState('');
+  const [selectedComponentRef, setSelectedComponentRef] = useState<string | null>(null);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -177,6 +299,53 @@ export default function InstructionDetailPage() {
         .slice(0, 3),
     [instruction?.cardLinks],
   );
+  const instructionComponentRefs = useMemo(
+    () => extractInstructionComponentRefs(instruction?.contentHtml || ''),
+    [instruction?.contentHtml],
+  );
+  const { data: instructionComponents = [] } = useQuery({
+    queryKey: ['instruction-components-map', instructionComponentRefs],
+    queryFn: async () => {
+      const results = await Promise.allSettled(
+        instructionComponentRefs.map((ref) => componentsApi.getById(ref)),
+      );
+
+      return results
+        .map((result) => (result.status === 'fulfilled' ? result.value : null))
+        .filter((value): value is NonNullable<typeof value> => Boolean(value));
+    },
+    enabled: canLoadInstruction && instructionComponentRefs.length > 0,
+    staleTime: 60_000,
+  });
+  const instructionComponentMap = useMemo(() => {
+    const map = new Map<string, { id: string; publicId: string; name: string; description?: string | null }>();
+
+    instructionComponents.forEach((component) => {
+      map.set(component.id, component);
+      map.set(component.publicId, component);
+    });
+
+    return map;
+  }, [instructionComponents]);
+  const renderedContentHtml = useMemo(
+    () =>
+      renderInstructionComponentDirectives(
+        instruction?.contentHtml || '',
+        instructionComponentMap,
+      ),
+    [instruction?.contentHtml, instructionComponentMap],
+  );
+
+  const {
+    data: selectedComponent,
+    isLoading: isComponentLoading,
+    isError: isComponentError,
+  } = useQuery({
+    queryKey: ['instruction-component', selectedComponentRef],
+    queryFn: () => componentsApi.getById(selectedComponentRef!),
+    enabled: !!selectedComponentRef && canLoadInstruction,
+    retry: 1,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: () => instructionsApi.delete(instruction!.id),
@@ -285,6 +454,17 @@ export default function InstructionDetailPage() {
 
   const handleInstructionContentClick = async (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
+    const componentToken = target?.closest('[data-component-ref]') as HTMLElement | null;
+
+    if (componentToken) {
+      event.preventDefault();
+      const componentRef = componentToken.getAttribute('data-component-ref');
+      if (componentRef) {
+        setSelectedComponentRef(componentRef);
+      }
+      return;
+    }
+
     const anchor = target?.closest('a');
 
     if (!anchor?.getAttribute('href')) {
@@ -315,113 +495,126 @@ export default function InstructionDetailPage() {
       <div className="page-container-wide">
         <div className="page-hero">
           <div className="page-hero-body">
-            <div className="page-title-row">
-              <div className="flex-1 min-w-0">
-                <div className="page-kicker">Инструкции</div>
-                <div className="mt-3 text-sm font-mono text-slate-400">{instruction.publicId}</div>
-                <h1 className="mt-4 text-2xl font-semibold text-slate-900">{instruction.title}</h1>
-                <p className="page-subtitle">
-                  {instruction.summary || 'Рабочая инструкция для портала «Нормбаза».'}
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                  <span>Автор: {instruction.createdBy.fullName}</span>
-                  <span>Обновлено: {formatRelative(instruction.updatedAt)}</span>
-                  <span>Вложений: {instruction.attachments.length}</span>
-                  <span>Карточек: {instruction.cardLinks.length}</span>
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <div className="page-kicker">Инструкции</div>
+                  <div className="mt-3 text-sm font-mono text-slate-400">{instruction.publicId}</div>
                 </div>
-              </div>
 
-              <div className="card-action-toolbar">
-                <Link href="/instructions" className="toolbar-button toolbar-button-ghost">
-                  <ArrowLeft className="h-4 w-4" />
-                  К списку
-                </Link>
-                <button
-                  type="button"
-                  className="toolbar-button toolbar-button-secondary"
-                  onClick={() => {
-                    navigator.clipboard.writeText(pageUrl);
-                    toast.success('Ссылка на инструкцию скопирована');
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                  Скопировать ссылку
-                </button>
-                <Link href={`/instructions/${instruction.publicId}/print`} target="_blank" className="toolbar-button toolbar-button-secondary">
-                  <FileDown className="h-4 w-4" />
-                  Скачать в PDF
-                </Link>
-                <button
-                  type="button"
-                  className="toolbar-button toolbar-button-secondary"
-                  onClick={() => setShowUsageDialog(true)}
-                >
-                  <Search className="h-4 w-4" />
-                  Где используется
-                  <span className="page-chip px-2 py-0.5 text-[11px]">{instruction.cardLinks.length}</span>
-                </button>
-                {canEdit && (
+                <div className="card-action-toolbar">
+                  <Link href="/instructions" className="toolbar-button toolbar-button-ghost">
+                    <ArrowLeft className="h-4 w-4" />
+                    К списку
+                  </Link>
                   <button
                     type="button"
                     className="toolbar-button toolbar-button-secondary"
                     onClick={() => {
-                      setSelectedFolderId(instruction.folder?.id || '');
-                      setShowMoveDialog(true);
+                      navigator.clipboard.writeText(pageUrl);
+                      toast.success('Ссылка на инструкцию скопирована');
                     }}
                   >
-                    <FolderOpen className="h-4 w-4" />
-                    Переместить
+                    <Copy className="h-4 w-4" />
+                    Скопировать ссылку
                   </button>
-                )}
-                {canEdit && instruction.status !== 'PUBLISHED' && (
-                  <button
-                    type="button"
-                    className="toolbar-button toolbar-button-primary"
-                    onClick={() => statusMutation.mutate('PUBLISHED')}
-                    disabled={statusMutation.isPending}
-                  >
-                    Опубликовать
-                  </button>
-                )}
-                {canEdit && instruction.status !== 'HIDDEN' && (
-                  <button
-                    type="button"
-                    className="toolbar-button toolbar-button-secondary"
-                    onClick={() => statusMutation.mutate('HIDDEN')}
-                    disabled={statusMutation.isPending}
-                  >
-                    Скрыть
-                  </button>
-                )}
-                {canEdit && instruction.status !== 'ARCHIVED' && (
-                  <button
-                    type="button"
-                    className="toolbar-button toolbar-button-secondary"
-                    onClick={() => statusMutation.mutate('ARCHIVED')}
-                    disabled={statusMutation.isPending}
-                  >
-                    Архивировать
-                  </button>
-                )}
-                {canEdit && (
-                  <Link
-                    href={`/instructions/${instruction.publicId}/edit`}
-                    className="toolbar-button toolbar-button-secondary toolbar-button-icon"
-                    title="Редактировать"
-                  >
-                    <Pencil className="h-4 w-4" />
+                  <Link href={`/instructions/${instruction.publicId}/print`} target="_blank" className="toolbar-button toolbar-button-secondary">
+                    <FileDown className="h-4 w-4" />
+                    Скачать в PDF
                   </Link>
-                )}
-                {isAdmin && (
                   <button
                     type="button"
-                    className="toolbar-button toolbar-button-danger toolbar-button-icon"
-                    onClick={() => setShowDeleteConfirm(true)}
-                    title="Удалить"
+                    className="toolbar-button toolbar-button-secondary px-3"
+                    onClick={() => setShowUsageDialog(true)}
+                    title="Где используется"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Search className="h-4 w-4" />
+                    <span className="text-sm font-semibold">{instruction.cardLinks.length}</span>
                   </button>
-                )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-secondary"
+                      onClick={() => {
+                        setSelectedFolderId(instruction.folder?.id || '');
+                        setShowMoveDialog(true);
+                      }}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      Переместить
+                    </button>
+                  )}
+                  {canEdit && instruction.status !== 'PUBLISHED' && (
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-primary"
+                      onClick={() => statusMutation.mutate('PUBLISHED')}
+                      disabled={statusMutation.isPending}
+                    >
+                      Опубликовать
+                    </button>
+                  )}
+                  {canEdit && instruction.status !== 'HIDDEN' && (
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-secondary"
+                      onClick={() => statusMutation.mutate('HIDDEN')}
+                      disabled={statusMutation.isPending}
+                    >
+                      Скрыть
+                    </button>
+                  )}
+                  {canEdit && instruction.status !== 'ARCHIVED' && (
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-secondary"
+                      onClick={() => statusMutation.mutate('ARCHIVED')}
+                      disabled={statusMutation.isPending}
+                    >
+                      Архивировать
+                    </button>
+                  )}
+                  {canEdit && (
+                    <Link
+                      href={`/instructions/${instruction.publicId}/edit`}
+                      className="toolbar-button toolbar-button-secondary toolbar-button-icon"
+                      title="Редактировать"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className="toolbar-button toolbar-button-danger toolbar-button-icon"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      title="Удалить"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <h1 className="truncate text-2xl font-semibold text-slate-900">{instruction.title}</h1>
+                <p className="mt-2 truncate text-sm text-slate-500">
+                  {instruction.summary || 'Рабочая инструкция для портала «Нормбаза».'}
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                    Автор: <span className="ml-1 text-slate-800">{displayUserName(instruction.createdBy, user?.id)}</span>
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                    Обновлено: <span className="ml-1 text-slate-800">{formatRelative(instruction.updatedAt)}</span>
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                    Вложений: <span className="ml-1 text-slate-800">{instruction.attachments.length}</span>
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                    Карточек: <span className="ml-1 text-slate-800">{instruction.cardLinks.length}</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -432,7 +625,7 @@ export default function InstructionDetailPage() {
             <div
               className="instruction-prose"
               onClick={handleInstructionContentClick}
-              dangerouslySetInnerHTML={{ __html: instruction.contentHtml }}
+              dangerouslySetInnerHTML={{ __html: renderedContentHtml }}
             />
           </div>
         </div>
@@ -459,7 +652,7 @@ export default function InstructionDetailPage() {
                     <div>
                       <div className="font-medium text-slate-800">{attachment.fileName}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {formatFileSize(Number(attachment.fileSize))} • {attachment.uploadedBy?.fullName || 'Пользователь'} • {formatRelative(attachment.createdAt)}
+                        {formatFileSize(Number(attachment.fileSize))} • {displayUserName(attachment.uploadedBy, user?.id) || 'Пользователь'} • {formatRelative(attachment.createdAt)}
                       </div>
                     </div>
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-primary">
@@ -543,7 +736,7 @@ export default function InstructionDetailPage() {
         </div>
       )}
 
-              {showUsageDialog && (
+      {showUsageDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowUsageDialog(false)} />
           <div className="relative mx-4 w-full max-w-3xl rounded-2xl bg-white shadow-xl">
@@ -570,8 +763,9 @@ export default function InstructionDetailPage() {
                     >
                       <div>
                         <div className="font-medium text-slate-800">
-                          {link.card.dataSource?.name || 'Без источника'}
-                          {link.card.extraTitle ? ` — ${link.card.extraTitle}` : ''}
+                          {link.card.dataSource?.name
+                            ? `${link.card.dataSource.name}${link.card.extraTitle ? ` — ${link.card.extraTitle}` : ''}`
+                            : link.card.extraTitle || 'Карточка'}
                         </div>
                         <div className="mt-1 text-xs text-slate-500">
                           {link.card.publicId} • Обновлено {formatRelative(link.card.updatedAt)}
@@ -592,6 +786,77 @@ export default function InstructionDetailPage() {
               >
                 Закрыть
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedComponentRef && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedComponentRef(null)} />
+          <div className="relative mx-4 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+            <div className="border-b border-slate-200 px-6 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="page-kicker">Компонент</div>
+                  <h3 className="mt-2 text-lg font-semibold text-slate-900">
+                    {isComponentLoading
+                      ? 'Загрузка компонента...'
+                      : selectedComponent?.name || selectedComponentRef}
+                  </h3>
+                  {!isComponentLoading && selectedComponent?.publicId && (
+                    <div className="mt-1 font-mono text-xs text-slate-400">{selectedComponent.publicId}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="btn-icon h-10 w-10 border border-slate-200 bg-white text-slate-500"
+                  onClick={() => setSelectedComponentRef(null)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              {isComponentLoading ? (
+                <div className="space-y-3">
+                  <div className="skeleton h-16 rounded-2xl" />
+                  <div className="skeleton h-12 rounded-2xl" />
+                  <div className="skeleton h-12 rounded-2xl" />
+                </div>
+              ) : isComponentError || !selectedComponent ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  Компонент не найден или недоступен для просмотра.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      Описание
+                    </div>
+                    <div className="mt-2 text-sm text-slate-700">
+                      {selectedComponent.description || 'Описание не заполнено.'}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                    <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                      Расположение
+                    </div>
+                    <div className="mt-3">
+                      <ComponentLocationActions location={selectedComponent.location} />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Link href="/components" className="btn-secondary" onClick={() => setSelectedComponentRef(null)}>
+                      <Boxes className="h-4 w-4" />
+                      Открыть раздел компонентов
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

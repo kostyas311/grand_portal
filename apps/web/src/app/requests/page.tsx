@@ -19,9 +19,13 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
+import { MentionText } from '@/components/shared/MentionText';
 import { adminRequestsApi, AdminRequestItem } from '@/lib/api/adminRequests';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { cn, formatDateTime, formatRelative } from '@/lib/utils';
+import { stripMentionMarkup } from '@/lib/mentions';
+import { displayUserName } from '@/lib/user-display';
 import { toast } from 'sonner';
 
 function RequestStatusBadge({ status }: { status: AdminRequestItem['status'] }) {
@@ -53,6 +57,7 @@ function RequestStatusBadge({ status }: { status: AdminRequestItem['status'] }) 
 
 function RequestCard({
   request,
+  currentUserId,
   isAdmin,
   isFocused,
   isEmbedded = false,
@@ -67,6 +72,7 @@ function RequestCard({
   isProcessing,
 }: {
   request: AdminRequestItem;
+  currentUserId?: string;
   isAdmin: boolean;
   isFocused: boolean;
   isEmbedded?: boolean;
@@ -99,7 +105,7 @@ function RequestCard({
           </div>
 
           <p className="request-body-text mt-3 whitespace-pre-wrap text-sm leading-6">
-            {request.description}
+            <MentionText text={request.description} />
           </p>
 
           {request.links.length > 0 && (
@@ -126,17 +132,17 @@ function RequestCard({
           )}
 
           <div className="request-meta-text mt-3 text-xs">
-            <span>Создано: {request.createdBy.fullName}</span>
+            <span>Создано: {displayUserName(request.createdBy, currentUserId)}</span>
             <span> • {formatDateTime(request.createdAt)}</span>
             {request.completedBy?.fullName && request.completedAt && (
               <>
-                <span> • Выполнил: {request.completedBy.fullName}</span>
+                <span> • Выполнил: {displayUserName(request.completedBy, currentUserId)}</span>
                 <span> • {formatDateTime(request.completedAt)}</span>
               </>
             )}
             {request.rejectedBy?.fullName && request.rejectedAt && (
               <>
-                <span> • Отклонил: {request.rejectedBy.fullName}</span>
+                <span> • Отклонил: {displayUserName(request.rejectedBy, currentUserId)}</span>
                 <span> • {formatDateTime(request.rejectedAt)}</span>
               </>
             )}
@@ -145,14 +151,14 @@ function RequestCard({
           {request.completionComment && (
             <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
               <div className="font-medium">Комментарий администратора</div>
-              <div className="mt-1 whitespace-pre-wrap">{request.completionComment}</div>
+              <div className="mt-1 whitespace-pre-wrap"><MentionText text={request.completionComment} /></div>
             </div>
           )}
 
           {request.rejectionComment && (
             <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               <div className="font-medium">Причина отклонения</div>
-              <div className="mt-1 whitespace-pre-wrap">{request.rejectionComment}</div>
+              <div className="mt-1 whitespace-pre-wrap"><MentionText text={request.rejectionComment} /></div>
             </div>
           )}
 
@@ -169,12 +175,12 @@ function RequestCard({
                 {request.messages.map((message) => (
                   <div key={message.id} className="request-message-card px-4 py-3">
                     <div className="request-meta-text flex flex-wrap items-center gap-2 text-xs">
-                      <span className="font-medium request-title-text">{message.author.fullName}</span>
+                      <span className="font-medium request-title-text">{displayUserName(message.author, currentUserId)}</span>
                       <span>•</span>
                       <span>{formatDateTime(message.createdAt)}</span>
                     </div>
                     <div className="request-body-text mt-2 whitespace-pre-wrap text-sm leading-6">
-                      {message.text}
+                      <MentionText text={message.text} />
                     </div>
                   </div>
                 ))}
@@ -186,11 +192,11 @@ function RequestCard({
         {isAdmin && request.status !== 'DONE' && request.status !== 'REJECTED' && (
           <div className="request-side-panel w-full max-w-sm p-4">
             <div className="text-sm font-semibold request-title-text">Обработать обращение</div>
-            <textarea
+            <MentionTextarea
               value={actionComment}
-              onChange={(event) => onActionCommentChange(event.target.value)}
-              rows={4}
-              className="input mt-3 w-full rounded-xl px-3 py-2 text-sm"
+              onChange={onActionCommentChange}
+              className="mt-3 w-full rounded-xl px-3 py-2 text-sm"
+              minHeightClass="min-h-28"
               placeholder={
                 request.status === 'CLARIFICATION_REQUIRED'
                   ? 'Комментарий администратора (для выполнения или отклонения)'
@@ -234,11 +240,11 @@ function RequestCard({
         {!isAdmin && request.status === 'CLARIFICATION_REQUIRED' && (
           <div className="request-side-panel w-full max-w-sm p-4">
             <div className="text-sm font-semibold request-title-text">Ответить администратору</div>
-            <textarea
+            <MentionTextarea
               value={replyComment}
-              onChange={(event) => onReplyCommentChange(event.target.value)}
-              rows={4}
-              className="input mt-3 w-full rounded-xl px-3 py-2 text-sm"
+              onChange={onReplyCommentChange}
+              className="mt-3 w-full rounded-xl px-3 py-2 text-sm"
+              minHeightClass="min-h-28"
               placeholder="Добавьте уточнение или дополнительный комментарий"
             />
             <button
@@ -259,10 +265,12 @@ function RequestCard({
 
 function RequestListItem({
   request,
+  currentUserId,
   isActive,
   onOpen,
 }: {
   request: AdminRequestItem;
+  currentUserId?: string;
   isActive: boolean;
   onOpen: () => void;
 }) {
@@ -289,14 +297,14 @@ function RequestListItem({
             <span className="request-meta-text">{formatRelative(request.updatedAt)}</span>
           </div>
           <div className="request-title-text mt-3 text-sm font-medium">
-            {request.createdBy.fullName}
+            {displayUserName(request.createdBy, currentUserId)}
           </div>
           <p className="request-body-text mt-2 line-clamp-2 text-sm leading-6">
-            {request.description}
+            {stripMentionMarkup(request.description)}
           </p>
           {lastMessage && (
             <div className="request-meta-text mt-2 text-xs">
-              Последнее сообщение: {lastMessage.author.fullName} • {formatRelative(lastMessage.createdAt)}
+              Последнее сообщение: {displayUserName(lastMessage.author, currentUserId)} • {formatRelative(lastMessage.createdAt)}
             </div>
           )}
         </div>
@@ -505,11 +513,11 @@ function RequestsPageContent() {
 
             <div className="mt-4">
               <label className="request-title-text text-sm font-medium">Описание</label>
-              <textarea
+              <MentionTextarea
                 value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={5}
-                className="input mt-2 w-full rounded-2xl px-4 py-3 text-sm"
+                onChange={setDescription}
+                className="mt-2 w-full rounded-2xl px-4 py-3 text-sm"
+                minHeightClass="min-h-36"
                 placeholder="Например: нужно обновить права доступа, проверить работу интеграции, помочь с загрузкой файлов..."
               />
               <div className="request-meta-text mt-1 text-xs">
@@ -626,6 +634,7 @@ function RequestsPageContent() {
               <RequestListItem
                 key={request.id}
                 request={request}
+                currentUserId={user?.id}
                 isActive={selectedRequestId === request.id}
                 onOpen={() => setSelectedRequestId(request.id)}
               />
@@ -659,6 +668,7 @@ function RequestsPageContent() {
               <div className="max-h-[calc(100vh-140px)] overflow-y-auto p-6">
                 <RequestCard
                   request={selectedRequest}
+                  currentUserId={user?.id}
                   isAdmin={!!isAdmin}
                   isFocused={false}
                   isEmbedded

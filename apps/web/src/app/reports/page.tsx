@@ -64,7 +64,7 @@ export default function ReportsPage() {
 
   return (
     <AppLayout>
-      <div className="page-container max-w-4xl">
+      <div className="page-container">
         <div className="page-hero">
           <div className="page-hero-body">
             <div className="page-title-row">

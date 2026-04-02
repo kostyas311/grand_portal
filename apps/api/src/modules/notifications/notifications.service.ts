@@ -31,11 +31,21 @@ type CreateAdminRequestNotificationParams = {
   excludeUserIds?: Array<string | null | undefined>;
 };
 
+type CreateInstructionNotificationParams = {
+  type: NotificationType;
+  title: string;
+  message: string;
+  actorId?: string;
+  recipientUserIds: Array<string | null | undefined>;
+  excludeUserIds?: Array<string | null | undefined>;
+};
+
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly portalBaseUrl =
     process.env.PORTAL_BASE_URL || process.env.APP_BASE_URL || 'http://localhost';
+  private readonly pendingBatchSize = Number(process.env.PENDING_NOTIFICATIONS_BATCH_SIZE || 500);
   private flushTimer?: NodeJS.Timeout;
   private isFlushing = false;
 
@@ -113,6 +123,14 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
                   fullName: true,
                 },
               },
+            },
+          },
+          instruction: {
+            select: {
+              id: true,
+              publicId: true,
+              title: true,
+              summary: true,
             },
           },
           actor: { select: { id: true, fullName: true } },
@@ -289,6 +307,55 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return { created: recipients.size };
   }
 
+  async createForInstructionEvent(
+    instructionId: string,
+    params: CreateInstructionNotificationParams,
+  ) {
+    const instruction = await this.prisma.instruction.findFirst({
+      where: {
+        OR: [{ id: instructionId }, { publicId: instructionId }],
+      },
+      select: { id: true },
+    });
+
+    if (!instruction) {
+      return { created: 0 };
+    }
+
+    const recipients = new Set<string>();
+
+    for (const userId of params.recipientUserIds || []) {
+      if (userId) {
+        recipients.add(userId);
+      }
+    }
+
+    for (const userId of params.excludeUserIds || []) {
+      if (userId) {
+        recipients.delete(userId);
+      }
+    }
+
+    if (recipients.size === 0) {
+      return { created: 0 };
+    }
+
+    await this.prisma.pendingNotification.createMany({
+      data: Array.from(recipients).map((userId) => ({
+        userId,
+        cardId: null,
+        adminRequestId: null,
+        instructionId: instruction.id,
+        actorId: params.actorId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+      })),
+    });
+
+    return { created: recipients.size };
+  }
+
   private async flushPendingNotifications() {
     if (this.isFlushing) {
       return;
@@ -297,57 +364,68 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     this.isFlushing = true;
 
     try {
-      const pendingItems = await this.prisma.pendingNotification.findMany({
-        orderBy: { createdAt: 'asc' },
-      });
+      while (true) {
+        const pendingItems = await this.prisma.pendingNotification.findMany({
+          orderBy: { createdAt: 'asc' },
+          take: this.pendingBatchSize,
+        });
 
-      if (pendingItems.length === 0) {
-        return;
+        if (pendingItems.length === 0) {
+          return;
+        }
+
+        const groups = new Map<string, typeof pendingItems>();
+
+        for (const item of pendingItems) {
+          const key = [
+            item.userId,
+            item.type,
+            item.cardId || '',
+            item.adminRequestId || '',
+            item.instructionId || '',
+            ([NotificationType.COMMENT_ADDED, NotificationType.USER_MENTIONED] as NotificationType[]).includes(item.type)
+              ? item.id
+              : '',
+          ].join(':');
+
+          const existing = groups.get(key) || [];
+          existing.push(item);
+          groups.set(key, existing);
+        }
+
+        const notifications = Array.from(groups.values()).map((items) => {
+          const first = items[0];
+          const actorIds = Array.from(new Set(items.map((item) => item.actorId).filter(Boolean)));
+          const actorId = actorIds.length === 1 ? actorIds[0]! : null;
+          const aggregated = this.buildAggregatedNotification(items);
+
+          return {
+            userId: first.userId,
+            cardId: first.cardId,
+            adminRequestId: first.adminRequestId,
+            instructionId: first.instructionId,
+            actorId,
+            type: first.type,
+            title: aggregated.title,
+            message: aggregated.message,
+          };
+        });
+
+        await this.prisma.$transaction([
+          this.prisma.notification.createMany({ data: notifications }),
+          this.prisma.pendingNotification.deleteMany({
+            where: {
+              id: { in: pendingItems.map((item) => item.id) },
+            },
+          }),
+        ]);
+
+        await this.sendEmailNotifications(pendingItems);
+
+        if (pendingItems.length < this.pendingBatchSize) {
+          return;
+        }
       }
-
-      const groups = new Map<string, typeof pendingItems>();
-
-      for (const item of pendingItems) {
-        const key = [
-          item.userId,
-          item.type,
-          item.cardId || '',
-          item.adminRequestId || '',
-          item.type === NotificationType.COMMENT_ADDED ? item.id : '',
-        ].join(':');
-
-        const existing = groups.get(key) || [];
-        existing.push(item);
-        groups.set(key, existing);
-      }
-
-      const notifications = Array.from(groups.values()).map((items) => {
-        const first = items[0];
-        const actorIds = Array.from(new Set(items.map((item) => item.actorId).filter(Boolean)));
-        const actorId = actorIds.length === 1 ? actorIds[0]! : null;
-        const aggregated = this.buildAggregatedNotification(items);
-
-        return {
-          userId: first.userId,
-          cardId: first.cardId,
-          adminRequestId: first.adminRequestId,
-          actorId,
-          type: first.type,
-          title: aggregated.title,
-          message: aggregated.message,
-        };
-      });
-
-      await this.prisma.$transaction([
-        this.prisma.notification.createMany({ data: notifications }),
-        this.prisma.pendingNotification.deleteMany({
-          where: {
-            id: { in: pendingItems.map((item) => item.id) },
-          },
-        }),
-      ]);
-
-      await this.sendEmailNotifications(pendingItems);
     } catch (error: any) {
       this.logger.error(
         'Не удалось отправить накопленные уведомления',
@@ -365,6 +443,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       message: string;
       cardId: string | null;
       adminRequestId: string | null;
+      instructionId: string | null;
     }>,
   ) {
     if (items.length === 1) {
@@ -381,6 +460,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       return {
         title: this.getAdminRequestBatchTitle(first.type, count),
         message: `За последние 3 минуты накопилось ${count} обновлений по обращению.`,
+      };
+    }
+
+    if (first.instructionId) {
+      return {
+        title: this.getInstructionBatchTitle(first.type, count),
+        message: `За последние 3 минуты накопилось ${count} обновлений по инструкции.`,
       };
     }
 
@@ -402,6 +488,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         return `Обновлены данные карточки (${count})`;
       case NotificationType.REVIEW_REQUEST:
         return `Новые события проверки (${count})`;
+      case NotificationType.USER_MENTIONED:
+        return `Новые упоминания (${count})`;
       case NotificationType.ASSIGNMENT_CHANGED:
         return `Обновлены назначения (${count})`;
       default:
@@ -426,11 +514,21 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private getInstructionBatchTitle(type: NotificationType, count: number) {
+    switch (type) {
+      case NotificationType.USER_MENTIONED:
+        return `Новые упоминания в инструкциях (${count})`;
+      default:
+        return `Новые события по инструкциям (${count})`;
+    }
+  }
+
   private async sendEmailNotifications(
     notifications: Array<{
       userId: string;
       cardId: string | null;
       adminRequestId: string | null;
+      instructionId: string | null;
       actorId: string | null;
       type: NotificationType;
       title: string;
@@ -455,11 +553,18 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           .filter((value): value is string => Boolean(value)),
       ),
     );
+    const instructionIds = Array.from(
+      new Set(
+        notifications
+          .map((item) => item.instructionId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
     const actorIds = Array.from(
       new Set(notifications.map((item) => item.actorId).filter((value): value is string => Boolean(value))),
     );
 
-    const [users, cards, adminRequests, actors] = await Promise.all([
+    const [users, cards, adminRequests, instructions, actors] = await Promise.all([
       this.prisma.user.findMany({
         where: {
           id: { in: userIds },
@@ -504,6 +609,19 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
             },
           })
         : Promise.resolve([]),
+      instructionIds.length
+        ? this.prisma.instruction.findMany({
+            where: {
+              id: { in: instructionIds },
+            },
+            select: {
+              id: true,
+              publicId: true,
+              title: true,
+              summary: true,
+            },
+          })
+        : Promise.resolve([]),
       actorIds.length
         ? this.prisma.user.findMany({
             where: {
@@ -524,6 +642,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const usersById = new Map(users.map((user) => [user.id, user]));
     const cardsById = new Map(cards.map((card) => [card.id, card]));
     const adminRequestsById = new Map(adminRequests.map((item) => [item.id, item]));
+    const instructionsById = new Map(instructions.map((item) => [item.id, item]));
     const actorsById = new Map(actors.map((actor) => [actor.id, actor]));
     const grouped = new Map<
       string,
@@ -557,7 +676,14 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           notification.type === NotificationType.REVIEW_REQUEST &&
           card.reviewerId === notification.userId;
 
-        if (!isWatcher && !isCreator && !isExecutor && !isReviewer && !isReviewerForReview) {
+        if (
+          notification.type !== NotificationType.USER_MENTIONED &&
+          !isWatcher &&
+          !isCreator &&
+          !isExecutor &&
+          !isReviewer &&
+          !isReviewerForReview
+        ) {
           continue;
         }
 
@@ -590,6 +716,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           createdAt: notification.createdAt,
           targetLabel: adminRequest?.publicId || 'Обращения к администратору',
           targetUrl: `${this.portalBaseUrl}/requests`,
+        });
+        grouped.set(notification.userId, existing);
+        continue;
+      }
+
+      if (notification.instructionId) {
+        const instruction = instructionsById.get(notification.instructionId);
+        const existing = grouped.get(notification.userId) || [];
+        existing.push({
+          title: notification.title,
+          message: notification.message,
+          actorName: notification.actorId ? actorsById.get(notification.actorId)?.fullName : undefined,
+          createdAt: notification.createdAt,
+          targetLabel: instruction?.title || 'Инструкция',
+          targetUrl: instruction?.publicId
+            ? `${this.portalBaseUrl}/instructions/${instruction.publicId}`
+            : `${this.portalBaseUrl}/instructions`,
         });
         grouped.set(notification.userId, existing);
       }

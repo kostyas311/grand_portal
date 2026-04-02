@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { cardsApi, dataSourcesApi, sprintsApi } from '@/lib/api';
 import { useEffect } from 'react';
 
@@ -43,9 +44,10 @@ export default function EditCardPage() {
     queryFn: () => sprintsApi.getAll(),
   });
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+  const descriptionValue = watch('description') || '';
 
   useEffect(() => {
     if (card) {
@@ -152,7 +154,12 @@ export default function EditCardPage() {
 
               <div>
                 <label className="label">Краткое описание</label>
-                <textarea className="input min-h-20 resize-none" {...register('description')} />
+                <MentionTextarea
+                  value={descriptionValue}
+                  onChange={(value) => setValue('description', value, { shouldDirty: true })}
+                  className="resize-none"
+                  minHeightClass="min-h-20"
+                />
               </div>
             </div>
           </div>

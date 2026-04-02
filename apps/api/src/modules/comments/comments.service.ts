@@ -3,6 +3,10 @@ import { CardStatus, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  compactMentionPreview,
+  extractMentionedUserIdsFromText,
+} from '../../common/utils/mentions.util';
 
 @Injectable()
 export class CommentsService {
@@ -14,9 +18,13 @@ export class CommentsService {
   private getCardDisplayName(card: {
     publicId: string;
     extraTitle?: string | null;
-    dataSourceId?: string | null;
+    dataSource?: { name?: string | null } | null;
   }) {
-    return card.extraTitle || card.publicId;
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private formatCommentForNotification(text: string) {
@@ -31,6 +39,9 @@ export class CommentsService {
   private async resolveCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
+      include: {
+        dataSource: { select: { name: true } },
+      },
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
@@ -85,6 +96,19 @@ export class CommentsService {
       extraUserIds: [card.createdById, card.executorId, card.reviewerId],
       excludeUserIds: [userId],
     });
+
+    const mentionedUserIds = extractMentionedUserIdsFromText(dto.text);
+    if (mentionedUserIds.length > 0) {
+      await this.notifications.createForCardEvent(card.id, {
+        type: NotificationType.USER_MENTIONED,
+        title: 'Вас упомянули в комментарии',
+        message: `В комментарии к карточке «${this.getCardDisplayName(card)}» вас упомянули.${compactMentionPreview(dto.text) ? ` Текст: ${compactMentionPreview(dto.text)}` : ''}`,
+        actorId: userId,
+        includeWatchers: false,
+        extraUserIds: mentionedUserIds,
+        excludeUserIds: [userId],
+      });
+    }
 
     return comment;
   }

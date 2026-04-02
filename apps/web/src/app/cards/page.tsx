@@ -13,6 +13,7 @@ import { CardFiltersPanel } from '@/components/cards/CardFiltersPanel';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { cardsApi, dataSourcesApi, sprintsApi } from '@/lib/api';
 import { formatDate, getDueDateIndicator } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 import { FileText } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/auth.store';
 
@@ -359,8 +360,8 @@ function AllCardsContent() {
                                 </span>
                               </div>
                             </td>
-                            <td className="text-sm text-gray-600">{card.executor?.fullName || '—'}</td>
-                            <td className="text-sm text-gray-600">{card.reviewer?.fullName || '—'}</td>
+                            <td className="text-sm text-gray-600">{displayUserName(card.executor, user?.id) || '—'}</td>
+                            <td className="text-sm text-gray-600">{displayUserName(card.reviewer, user?.id) || '—'}</td>
                             <td className="text-xs text-gray-400">{formatDate(card.updatedAt)}</td>
                           </tr>
                         );

@@ -7,6 +7,10 @@ import {
 import { AdminRequestStatus, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  compactMentionPreview,
+  extractMentionedUserIdsFromText,
+} from '../../common/utils/mentions.util';
 import { CreateAdminRequestDto } from './dto/create-admin-request.dto';
 import { CompleteAdminRequestDto } from './dto/complete-admin-request.dto';
 import { AdminRequestsFilterDto } from './dto/admin-requests-filter.dto';
@@ -132,6 +136,8 @@ export class AdminRequestsService {
       recipientUserIds: admins.map((admin) => admin.id),
     });
 
+    await this.notifyMentionedUsers(request.id, request.publicId, dto.description, userId, 'в тексте обращения');
+
     return request;
   }
 
@@ -186,6 +192,14 @@ export class AdminRequestsService {
       recipientUserIds: [updated.createdById],
       excludeUserIds: [userId],
     });
+
+    await this.notifyMentionedUsers(
+      updated.id,
+      updated.publicId,
+      dto.completionComment,
+      userId,
+      'в комментарии к выполнению обращения',
+    );
 
     return updated;
   }
@@ -249,6 +263,14 @@ export class AdminRequestsService {
       recipientUserIds: [updated.createdById],
       excludeUserIds: [userId],
     });
+
+    await this.notifyMentionedUsers(
+      updated.id,
+      updated.publicId,
+      comment,
+      userId,
+      'в уточнении по обращению',
+    );
 
     return updated;
   }
@@ -315,6 +337,14 @@ export class AdminRequestsService {
       excludeUserIds: [userId],
     });
 
+    await this.notifyMentionedUsers(
+      updated.id,
+      updated.publicId,
+      text,
+      userId,
+      'в ответе по обращению',
+    );
+
     return updated;
   }
 
@@ -372,7 +402,38 @@ export class AdminRequestsService {
       excludeUserIds: [userId],
     });
 
+    await this.notifyMentionedUsers(
+      updated.id,
+      updated.publicId,
+      comment,
+      userId,
+      'в комментарии к отклонению обращения',
+    );
+
     return updated;
+  }
+
+  private async notifyMentionedUsers(
+    requestId: string,
+    publicId: string,
+    text: string | null | undefined,
+    actorId: string,
+    contextLabel: string,
+  ) {
+    const mentionedUserIds = extractMentionedUserIdsFromText(text);
+
+    if (mentionedUserIds.length === 0) {
+      return;
+    }
+
+    await this.notifications.createForAdminRequestEvent(requestId, {
+      type: NotificationType.USER_MENTIONED,
+      title: 'Вас упомянули в обращении',
+      message: `В обращении ${publicId} вас упомянули ${contextLabel}.${compactMentionPreview(text) ? ` Текст: ${compactMentionPreview(text)}` : ''}`,
+      actorId,
+      recipientUserIds: mentionedUserIds,
+      excludeUserIds: [actorId],
+    });
   }
 
   private async generatePublicId() {

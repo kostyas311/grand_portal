@@ -326,13 +326,20 @@ export default function AdminSprintsPage() {
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} />
-          <div className="relative mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-base font-semibold text-slate-900">
-              {editingSprint ? 'Изменение спринта' : 'Создание спринта'}
-            </h3>
-            <div className="mt-4 space-y-4">
+        <div className="app-modal-overlay">
+          <div className="app-modal-backdrop" onClick={() => setShowCreateModal(false)} />
+          <div className="app-modal-panel app-modal-panel-md">
+            <div className="app-modal-header">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">
+                  {editingSprint ? 'Изменение спринта' : 'Создание спринта'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Задай название рабочего периода и его границы.
+                </p>
+              </div>
+            </div>
+            <div className="app-modal-body space-y-4">
               <div>
                 <label className="label label-required">Название</label>
                 <input
@@ -363,7 +370,7 @@ export default function AdminSprintsPage() {
                 </div>
               </div>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="app-modal-actions">
               <button className="btn-secondary" onClick={() => setShowCreateModal(false)}>
                 Отмена
               </button>
@@ -387,14 +394,18 @@ export default function AdminSprintsPage() {
       )}
 
       {showCloseModal && currentSprint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCloseModal(false)} />
-          <div className="relative mx-4 w-full max-w-xl rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-base font-semibold text-slate-900">Завершение спринта</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Текущий спринт будет закрыт. При желании можно сразу открыть следующий и перенести в него незавершённые карточки.
-            </p>
-            <div className="mt-4 space-y-4">
+        <div className="app-modal-overlay">
+          <div className="app-modal-backdrop" onClick={() => setShowCloseModal(false)} />
+          <div className="app-modal-panel app-modal-panel-lg">
+            <div className="app-modal-header">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Завершение спринта</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Текущий спринт будет закрыт. При желании можно сразу открыть следующий и перенести в него незавершённые карточки.
+                </p>
+              </div>
+            </div>
+            <div className="app-modal-body space-y-4">
               <div className="soft-note text-sm text-slate-700">
                 Закрывается: <span className="font-medium text-slate-900">{currentSprint.name}</span>
               </div>
@@ -440,7 +451,7 @@ export default function AdminSprintsPage() {
                 </div>
               </label>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="app-modal-actions">
               <button className="btn-secondary" onClick={() => setShowCloseModal(false)}>
                 Отмена
               </button>
