@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2, MessageSquareQuote, Mail, ScrollText, CalendarRange, Boxes,
+  LayoutDashboard, FileText, CheckCircle, BookOpen, Users, LogOut, User, ChevronRight, BarChart2, MessageSquareQuote, Mail, ScrollText, CalendarRange, Boxes, ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -18,6 +18,7 @@ const managerNavItems = [
   { href: '/admin/sprints', label: 'Спринты', icon: CalendarRange },
   { href: '/instructions', label: 'Инструкции', icon: ScrollText },
   { href: '/components', label: 'Компоненты', icon: Boxes },
+  { href: '/review-protocols', label: 'Протоколы проверки', icon: ClipboardList },
   { href: '/requests', label: 'Обращения', icon: MessageSquareQuote },
   { href: '/', label: 'Готовые проекты', icon: CheckCircle },
   { href: '/sources', label: 'Источники НСД', icon: BookOpen },
@@ -28,6 +29,7 @@ const userNavItems = [
   { href: '/dashboard', label: 'Мой кабинет', icon: LayoutDashboard },
   { href: '/instructions', label: 'Инструкции', icon: ScrollText },
   { href: '/components', label: 'Компоненты', icon: Boxes },
+  { href: '/review-protocols', label: 'Протоколы проверки', icon: ClipboardList },
   { href: '/requests', label: 'Обращения', icon: MessageSquareQuote },
 ];
 
@@ -35,6 +37,7 @@ const adminNavItems = [
   { href: '/cards', label: 'Все карточки', icon: FileText },
   { href: '/instructions', label: 'Инструкции', icon: ScrollText },
   { href: '/components', label: 'Компоненты', icon: Boxes },
+  { href: '/review-protocols', label: 'Протоколы проверки', icon: ClipboardList },
   { href: '/requests', label: 'Обращения', icon: MessageSquareQuote },
   { href: '/', label: 'Готовые проекты', icon: CheckCircle },
   { href: '/sources', label: 'Источники НСД', icon: BookOpen },

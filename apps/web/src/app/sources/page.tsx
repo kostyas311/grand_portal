@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Archive, ArchiveRestore, BookOpen, ExternalLink, Trash2, X, Check, Boxes } from 'lucide-react';
+import { Plus, Search, Archive, ArchiveRestore, BookOpen, ExternalLink, Trash2, X, Check, Boxes, ClipboardList } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SourceInstructionsSidebar } from '@/components/instructions/SourceInstructionsSidebar';
 import { SourceComponentsSidebar } from '@/components/components/SourceComponentsSidebar';
+import { SourceReviewProtocolSidebar } from '@/components/review-protocols/SourceReviewProtocolSidebar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { dataSourcesApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -37,6 +38,7 @@ export default function SourcesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [instructionsSource, setInstructionsSource] = useState<any | null>(null);
   const [componentsSource, setComponentsSource] = useState<any | null>(null);
+  const [reviewProtocolSource, setReviewProtocolSource] = useState<any | null>(null);
   const isFormModalOpen = (showForm || !!editingSource) && canEdit;
 
   const { data: sources, isLoading } = useQuery({
@@ -323,9 +325,9 @@ export default function SourcesPage() {
                       <span className="text-xs font-medium text-blue-600 dark:text-blue-300">Открыть</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setComponentsSource(modalSource)}
+                      <button
+                        type="button"
+                        onClick={() => setComponentsSource(modalSource)}
                       className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-violet-200 hover:bg-violet-50/70 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-violet-400/40 dark:hover:bg-violet-500/10"
                     >
                       <span className="flex items-center gap-3">
@@ -340,6 +342,24 @@ export default function SourcesPage() {
                         </span>
                       </span>
                       <span className="text-xs font-medium text-violet-600 dark:text-violet-300">Открыть</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReviewProtocolSource(modalSource)}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-amber-200 hover:bg-amber-50/70 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-amber-400/40 dark:hover:bg-amber-500/10"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="rounded-xl bg-amber-100 p-2 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
+                          <ClipboardList className="h-4 w-4" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Протокол проверки</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">
+                            Шаблон проверки для новых карточек этого источника
+                          </span>
+                        </span>
+                      </span>
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-300">Открыть</span>
                     </button>
                     </div>
                   </div>
@@ -406,6 +426,15 @@ export default function SourcesPage() {
             sourceName={componentsSource.name}
             isOpen={!!componentsSource}
             onClose={() => setComponentsSource(null)}
+          />
+        )}
+
+        {reviewProtocolSource && (
+          <SourceReviewProtocolSidebar
+            sourceId={reviewProtocolSource.id}
+            sourceName={reviewProtocolSource.name}
+            isOpen={!!reviewProtocolSource}
+            onClose={() => setReviewProtocolSource(null)}
           />
         )}
       </div>

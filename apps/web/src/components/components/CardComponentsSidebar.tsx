@@ -15,6 +15,7 @@ export function CardComponentsSidebar({
   onClose,
   linkedComponents,
   canManage,
+  canDetach,
 }: {
   cardId: string;
   isOpen: boolean;
@@ -25,6 +26,7 @@ export function CardComponentsSidebar({
     component: import('@/lib/api/components').ComponentItem;
   }>;
   canManage: boolean;
+  canDetach: boolean;
 }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -148,7 +150,7 @@ export function CardComponentsSidebar({
                           <ExternalLink className="h-4 w-4" />
                           Открыть раздел
                         </Link>
-                        {canManage && (
+                        {canDetach && (
                           <button
                             type="button"
                             className="btn-secondary"

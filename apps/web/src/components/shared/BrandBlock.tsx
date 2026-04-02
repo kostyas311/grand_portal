@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-const BRAND_LOGO_URL = 'https://fs.getcourse.ru/fileservice/file/download/a/1436/sc/95/h/050c2f77b65a9a193310e99cf816c4a1.png';
+const BRAND_LOGO_URL = '/logo.png';
 
 interface BrandBlockProps {
   variant?: 'sidebar' | 'auth';

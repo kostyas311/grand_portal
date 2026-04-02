@@ -153,6 +153,7 @@ export function CardInstructionsSidebar({
   onClose,
   linkedInstructions,
   canManage,
+  canDetach,
 }: {
   cardId: string;
   isOpen: boolean;
@@ -163,6 +164,7 @@ export function CardInstructionsSidebar({
     instruction: InstructionItem;
   }>;
   canManage: boolean;
+  canDetach: boolean;
 }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -325,7 +327,7 @@ export function CardInstructionsSidebar({
                           <ExternalLink className="h-4 w-4" />
                           Открыть
                         </Link>
-                        {canManage && (
+                        {canDetach && (
                           <button
                             type="button"
                             className="btn-secondary"

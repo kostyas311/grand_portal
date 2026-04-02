@@ -7,6 +7,7 @@ export { notificationEmailSettingsApi } from './notificationEmailSettings';
 export { instructionsApi } from './instructions';
 export { sprintsApi } from './sprints';
 export { componentsApi } from './components';
+export { reviewProtocolsApi } from './reviewProtocols';
 
 import { apiClient } from './client';
 

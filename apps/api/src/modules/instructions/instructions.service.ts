@@ -441,7 +441,7 @@ export class InstructionsService {
     userRole?: UserRole,
   ) {
     const card = await this.getCard(cardId);
-    this.assertCanManageCardInstructions(card, userId, userRole);
+    this.assertCanDetachCardInstruction(card, userId, userRole);
 
     const link = await this.prisma.cardInstruction.findFirst({
       where: {
@@ -587,6 +587,16 @@ export class InstructionsService {
     if (!canManage) {
       throw new ForbiddenException('Недостаточно прав для изменения инструкций карточки');
     }
+  }
+
+  private assertCanDetachCardInstruction(card: any, userId: string, userRole?: UserRole) {
+    if (card.status === CardStatus.REVIEW && userRole !== UserRole.ADMIN && card.reviewerId !== userId) {
+      throw new ForbiddenException(
+        'На этапе проверки убрать инструкцию из карточки может только проверяющий или администратор',
+      );
+    }
+
+    this.assertCanManageCardInstructions(card, userId, userRole);
   }
 
   private buildVisibilityClause(userId: string, userRole?: UserRole, explicitStatus?: InstructionStatus) {
