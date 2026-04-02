@@ -194,6 +194,44 @@ npm run dev
 
 Нужен PostgreSQL и корректный `DATABASE_URL` в `.env`.
 
+## Windows-приложение на Electron
+
+Desktop-клиент находится в `apps/desktop` и собирается через `Electron.js`.
+
+Он упаковывает:
+
+- backend из `apps/api`;
+- frontend из `apps/web`;
+- Electron-оболочку, которая поднимает локальные web/api процессы и открывает портал в нативном окне Windows.
+
+### Сборка Windows-версии
+
+```powershell
+cd apps/desktop
+npm run dist:win
+```
+
+Что делает сборка:
+
+- собирает `apps/api`;
+- собирает `apps/web` в режиме `standalone`;
+- подготавливает bundle в `apps/desktop/build/app`;
+- выпускает Windows installer в `apps/desktop/dist`.
+
+### Быстрый запуск desktop-клиента в разработке
+
+```powershell
+cd apps/desktop
+npm run dev
+```
+
+По умолчанию dev-режим открывает портал по адресу `http://127.0.0.1:3000`.
+Если нужен другой адрес, можно задать `DESKTOP_START_URL`.
+
+### Важное ограничение
+
+Electron-клиент не встраивает PostgreSQL внутрь приложения. Для работы desktop-версии нужен доступный PostgreSQL и корректно заполненный `.env`.
+
 ## Переменные окружения
 
 Основные переменные описаны в [.env.example](./.env.example).

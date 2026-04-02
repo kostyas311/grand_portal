@@ -1,0 +1,57 @@
+{
+  "name": "normbase-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows desktop client for the NormBase portal",
+  "author": "NormBase Portal Team",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "build:app": "npm --prefix ../api run build && npm --prefix ../web run build && node ./scripts/prepare-bundle.js",
+    "dist:win": "npm run build:app && electron-builder --win nsis",
+    "pack:win": "npm run build:app && electron-builder --win portable dir"
+  },
+  "dependencies": {
+    "dotenv": "^9.0.2",
+    "electron-log": "^5.2.0"
+  },
+  "devDependencies": {
+    "electron": "^32.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "ru.normbase.desktop",
+    "productName": "Нормбаза",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/app",
+        "to": "app-bundle"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "buildResources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Нормбаза"
+    }
+  }
+}

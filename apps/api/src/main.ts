@@ -22,10 +22,12 @@ async function bootstrap() {
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: process.env.URLENCODED_BODY_LIMIT || '2mb' }));
 
-  // CORS — только для разработки; в production — nginx обрабатывает
-  if (process.env.NODE_ENV !== 'production') {
+  const corsOrigin = process.env.CORS_ORIGIN;
+
+  // В desktop-режиме и локальной разработке API может открываться напрямую без nginx.
+  if (corsOrigin || process.env.NODE_ENV !== 'production') {
     app.enableCors({
-      origin: 'http://localhost:3000',
+      origin: corsOrigin || 'http://localhost:3000',
       credentials: true,
     });
   }
