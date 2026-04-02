@@ -64,6 +64,7 @@ enum NotificationType {
   CARD_UPDATED
   REVIEW_REQUEST
   COMMENT_ADDED
+  USER_MENTIONED
   SOURCE_MATERIAL_ADDED
   RESULT_ADDED
   ADMIN_REQUEST_CREATED
@@ -363,6 +364,7 @@ model Notification {
   userId    String           @map("user_id")
   cardId    String?          @map("card_id")
   adminRequestId String?     @map("admin_request_id")
+  instructionId String?      @map("instruction_id")
   actorId   String?          @map("actor_id")
   type      NotificationType
   title     String
@@ -374,11 +376,13 @@ model Notification {
   user  User  @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
   card  Card? @relation(fields: [cardId], references: [id], onDelete: Cascade)
   adminRequest AdminRequest? @relation(fields: [adminRequestId], references: [id], onDelete: Cascade)
+  instruction Instruction? @relation(fields: [instructionId], references: [id], onDelete: Cascade)
   actor User? @relation("NotificationActor", fields: [actorId], references: [id])
 
   @@index([userId])
   @@index([cardId])
   @@index([adminRequestId])
+  @@index([instructionId])
   @@index([actorId])
   @@index([isRead])
   @@index([createdAt])
@@ -390,6 +394,7 @@ model PendingNotification {
   userId         String           @map("user_id")
   cardId         String?          @map("card_id")
   adminRequestId String?          @map("admin_request_id")
+  instructionId  String?          @map("instruction_id")
   actorId        String?          @map("actor_id")
   type           NotificationType
   title          String
@@ -399,11 +404,13 @@ model PendingNotification {
   user         User          @relation("PendingNotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
   card         Card?         @relation(fields: [cardId], references: [id], onDelete: Cascade)
   adminRequest AdminRequest? @relation(fields: [adminRequestId], references: [id], onDelete: Cascade)
+  instruction  Instruction?  @relation(fields: [instructionId], references: [id], onDelete: Cascade)
   actor        User?         @relation("PendingNotificationActor", fields: [actorId], references: [id])
 
   @@index([userId])
   @@index([cardId])
   @@index([adminRequestId])
+  @@index([instructionId])
   @@index([actorId])
   @@index([createdAt])
   @@map("pending_notifications")
@@ -547,6 +554,8 @@ model Instruction {
   attachments InstructionAttachment[]
   cardLinks   CardInstruction[]
   dataSourceLinks DataSourceInstruction[]
+  notifications Notification[]
+  pendingNotifications PendingNotification[]
 
   @@index([status])
   @@index([folderId])

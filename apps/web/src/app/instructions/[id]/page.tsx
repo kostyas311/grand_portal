@@ -14,6 +14,7 @@ import { componentsApi } from '@/lib/api/components';
 import { ComponentLocationActions } from '@/components/components/ComponentLocationActions';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { cn, formatFileSize, formatRelative } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 
 interface FolderTreeNode extends InstructionFolderItem {
   children: FolderTreeNode[];
@@ -602,7 +603,7 @@ export default function InstructionDetailPage() {
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                    Автор: <span className="ml-1 text-slate-800">{instruction.createdBy.fullName}</span>
+                    Автор: <span className="ml-1 text-slate-800">{displayUserName(instruction.createdBy, user?.id)}</span>
                   </span>
                   <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
                     Обновлено: <span className="ml-1 text-slate-800">{formatRelative(instruction.updatedAt)}</span>
@@ -651,7 +652,7 @@ export default function InstructionDetailPage() {
                     <div>
                       <div className="font-medium text-slate-800">{attachment.fileName}</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {formatFileSize(Number(attachment.fileSize))} • {attachment.uploadedBy?.fullName || 'Пользователь'} • {formatRelative(attachment.createdAt)}
+                        {formatFileSize(Number(attachment.fileSize))} • {displayUserName(attachment.uploadedBy, user?.id) || 'Пользователь'} • {formatRelative(attachment.createdAt)}
                       </div>
                     </div>
                     <span className="inline-flex items-center gap-2 text-sm font-medium text-primary">

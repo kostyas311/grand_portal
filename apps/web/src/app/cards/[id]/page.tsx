@@ -16,10 +16,13 @@ import { CardPriorityBadge } from '@/components/cards/CardPriorityBadge';
 import { CopyLink } from '@/components/shared/CopyLink';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { ExternalUrlLink } from '@/components/shared/ExternalUrlLink';
+import { MentionText } from '@/components/shared/MentionText';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { CardInstructionsSidebar } from '@/components/instructions/CardInstructionsSidebar';
 import { CardComponentsSidebar } from '@/components/components/CardComponentsSidebar';
 import { ComponentLocationActions } from '@/components/components/ComponentLocationActions';
 import { isLocalPath } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 import { cardsApi, materialsApi, resultsApi, commentsApi, usersApi, getAccessToken } from '@/lib/api';
 import { instructionsApi } from '@/lib/api/instructions';
 import { componentsApi } from '@/lib/api/components';
@@ -117,6 +120,7 @@ export default function CardDetailPage() {
   const [showUploadResult, setShowUploadResult] = useState(false);
   const [showInstructionsSidebar, setShowInstructionsSidebar] = useState(false);
   const [showComponentsSidebar, setShowComponentsSidebar] = useState(false);
+  const [selectedComponentRef, setSelectedComponentRef] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
 
   // Upload material state
@@ -302,6 +306,16 @@ export default function CardDetailPage() {
     queryKey: ['card-components', id],
     queryFn: () => componentsApi.getCardComponents(id),
     enabled: canLoadCard,
+  });
+
+  const {
+    data: selectedComponent,
+    isLoading: isComponentLoading,
+    isError: isComponentError,
+  } = useQuery({
+    queryKey: ['card-component', selectedComponentRef],
+    queryFn: () => componentsApi.getById(selectedComponentRef!),
+    enabled: !!selectedComponentRef && canLoadCard,
   });
 
   const statusMutation = useMutation({
@@ -557,7 +571,7 @@ export default function CardDetailPage() {
             <span className="badge badge-done">Актуальная</span>
           )}
           <span className="result-version-meta">
-            {version.createdBy?.fullName} · {formatRelative(version.createdAt)}
+            {displayUserName(version.createdBy, user?.id)} · {formatRelative(version.createdAt)}
           </span>
         </div>
         {version.items?.some((i: any) => i.itemType === 'FILE') && (
@@ -761,14 +775,18 @@ export default function CardDetailPage() {
             <div className="space-y-4 mt-5">
               {card.description ? (
                 <div className="soft-note bg-blue-50 border-blue-100">
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{card.description}</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                    <MentionText text={card.description} />
+                  </p>
                 </div>
               ) : null}
 
               {card.cancelReason && (
                 <div className="soft-note bg-red-50 border-red-100">
                   <span className="text-xs font-medium text-red-500 uppercase tracking-wide">Причина отмены</span>
-                  <p className="text-sm text-red-700 mt-1">{card.cancelReason}</p>
+                  <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">
+                    <MentionText text={card.cancelReason} />
+                  </p>
                 </div>
               )}
 
@@ -781,7 +799,7 @@ export default function CardDetailPage() {
                 </div>
                 <div className="meta-panel">
                   <div className="meta-label">Создал</div>
-                  <div className="meta-value">{card.createdBy?.fullName || '—'}</div>
+                    <div className="meta-value">{displayUserName(card.createdBy, user?.id) || '—'}</div>
                 </div>
                 <div className="meta-panel">
                   <div className="meta-label">Исполнитель</div>
@@ -792,11 +810,11 @@ export default function CardDetailPage() {
                       onChange={e => assignMutation.mutate({ executorId: e.target.value || null })}
                     >
                       {assignableUsers.map((u: any) => (
-                        <option key={u.id} value={u.id}>{u.fullName}</option>
+                        <option key={u.id} value={u.id}>{displayUserName(u, user?.id)}</option>
                       ))}
                     </select>
                   ) : (
-                    <div className="meta-value">{card.executor?.fullName || '—'}</div>
+                    <div className="meta-value">{displayUserName(card.executor, user?.id) || '—'}</div>
                   )}
                 </div>
                 <div className="meta-panel">
@@ -808,11 +826,11 @@ export default function CardDetailPage() {
                       onChange={e => assignMutation.mutate({ reviewerId: e.target.value || null })}
                     >
                       {assignableUsers.map((u: any) => (
-                        <option key={u.id} value={u.id}>{u.fullName}</option>
+                        <option key={u.id} value={u.id}>{displayUserName(u, user?.id)}</option>
                       ))}
                     </select>
                   ) : (
-                    <div className="meta-value">{card.reviewer?.fullName || '—'}</div>
+                    <div className="meta-value">{displayUserName(card.reviewer, user?.id) || '—'}</div>
                   )}
                 </div>
               </div>
@@ -1164,15 +1182,27 @@ export default function CardDetailPage() {
                     className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 lg:flex-row lg:items-start lg:justify-between"
                   >
                     <div className="min-w-0 flex-1">
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        className="rounded-xl text-left transition hover:bg-white/70 focus:outline-none focus:ring-2 focus:ring-primary-700/20"
+                        onClick={() => setSelectedComponentRef(link.component.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setSelectedComponentRef(link.component.id);
+                          }
+                        }}
+                      >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="page-chip font-mono">{link.component.publicId}</span>
                         <span className="text-xs text-slate-400">{formatRelative(link.createdAt)}</span>
-                        <span className="page-chip">{link.component._count?.cardLinks || 0} карточек</span>
                       </div>
                       <div className="mt-3 text-sm font-semibold text-slate-900">{link.component.name}</div>
                       {link.component.description && (
                         <p className="mt-1 text-sm text-slate-500">{link.component.description}</p>
                       )}
+                      </div>
                       <div className="mt-3">
                         <ComponentLocationActions location={link.component.location} />
                       </div>
@@ -1193,6 +1223,77 @@ export default function CardDetailPage() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedComponentRef && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedComponentRef(null)} />
+            <div className="relative mx-4 w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+              <div className="border-b border-slate-200 px-6 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="page-kicker">Компонент</div>
+                    <h3 className="mt-2 text-lg font-semibold text-slate-900">
+                      {isComponentLoading
+                        ? 'Загрузка компонента...'
+                        : selectedComponent?.name || selectedComponentRef}
+                    </h3>
+                    {!isComponentLoading && selectedComponent?.publicId && (
+                      <div className="mt-1 font-mono text-xs text-slate-400">{selectedComponent.publicId}</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-icon h-10 w-10 border border-slate-200 bg-white text-slate-500"
+                    onClick={() => setSelectedComponentRef(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="px-6 py-5">
+                {isComponentLoading ? (
+                  <div className="space-y-3">
+                    <div className="skeleton h-16 rounded-2xl" />
+                    <div className="skeleton h-12 rounded-2xl" />
+                    <div className="skeleton h-12 rounded-2xl" />
+                  </div>
+                ) : isComponentError || !selectedComponent ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                    Компонент не найден или недоступен для просмотра.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Описание
+                      </div>
+                      <div className="mt-2 text-sm text-slate-700">
+                        {selectedComponent.description || 'Описание не заполнено.'}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                      <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        Расположение
+                      </div>
+                      <div className="mt-3">
+                        <ComponentLocationActions location={selectedComponent.location} />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Link href="/components" className="btn-secondary" onClick={() => setSelectedComponentRef(null)}>
+                        <Boxes className="h-4 w-4" />
+                        Открыть раздел компонентов
+                      </Link>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1248,7 +1349,7 @@ export default function CardDetailPage() {
                     <div key={comment.id} className="border-l-2 border-gray-200 pl-3">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-medium text-gray-700">
-                          {comment.author?.fullName}
+                          {displayUserName(comment.author, user?.id)}
                         </span>
                         {comment.resultVersion && (
                           <span className="badge badge-review text-xs">
@@ -1259,7 +1360,9 @@ export default function CardDetailPage() {
                           {formatRelative(comment.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">{comment.text}</p>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                        <MentionText text={comment.text} />
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -1533,20 +1636,20 @@ export default function CardDetailPage() {
               <div className="mb-4 space-y-4">
                 <div>
                   <label className={`label ${isAdmin ? '' : 'label-required'}`}>Причина отмены</label>
-                  <textarea
-                    className="input min-h-20"
+                  <MentionTextarea
                     placeholder={isAdmin ? 'Причина отмены (необязательно)...' : 'Опишите причину отмены карточки...'}
                     value={statusReason}
-                    onChange={e => setStatusReason(e.target.value)}
+                    onChange={setStatusReason}
+                    minHeightClass="min-h-20"
                   />
                 </div>
                 <div>
                   <label className="label">Комментарий</label>
-                  <textarea
-                    className="input min-h-20"
+                  <MentionTextarea
                     placeholder="Дополнительный комментарий к отмене (необязательно)..."
                     value={statusComment}
-                    onChange={e => setStatusComment(e.target.value)}
+                    onChange={setStatusComment}
+                    minHeightClass="min-h-20"
                   />
                 </div>
               </div>
@@ -1555,11 +1658,11 @@ export default function CardDetailPage() {
             {pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW' && (
               <div className="mb-4">
                 <label className={`label ${isAdmin ? '' : 'label-required'}`}>Замечания</label>
-                <textarea
-                  className="input min-h-24"
+                <MentionTextarea
                   placeholder={isAdmin ? 'Комментарий к возврату (необязательно)...' : 'Опишите обнаруженные ошибки или замечания...'}
                   value={statusComment}
-                  onChange={e => setStatusComment(e.target.value)}
+                  onChange={setStatusComment}
+                  minHeightClass="min-h-24"
                 />
               </div>
             )}
@@ -1576,11 +1679,11 @@ export default function CardDetailPage() {
             {!(pendingStatus === 'CANCELLED' || (pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW')) && (
               <div className="mb-4">
                 <label className="label">Комментарий</label>
-                <textarea
-                  className="input min-h-20"
+                <MentionTextarea
                   placeholder="Комментарий к изменению статуса (необязательно)..."
                   value={statusComment}
-                  onChange={e => setStatusComment(e.target.value)}
+                  onChange={setStatusComment}
+                  minHeightClass="min-h-20"
                 />
               </div>
             )}

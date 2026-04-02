@@ -13,14 +13,19 @@ import {
   CornerDownLeft,
   FileStack,
   Inbox,
+  AtSign,
   MessageSquareText,
   RefreshCw,
   Reply,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { MentionText } from '@/components/shared/MentionText';
 import { notificationsApi, NotificationItem } from '@/lib/api/notifications';
 import { cn, formatDateTime, formatRelative } from '@/lib/utils';
+import { stripMentionMarkup } from '@/lib/mentions';
+import { useAuthStore } from '@/lib/store/auth.store';
+import { displayUserName } from '@/lib/user-display';
 
 const notificationTypeMeta: Record<
   string,
@@ -50,6 +55,11 @@ const notificationTypeMeta: Record<
     label: 'Комментарий',
     icon: MessageSquareText,
     accent: 'text-amber-700 bg-amber-50 border-amber-100',
+  },
+  USER_MENTIONED: {
+    label: 'Упоминание',
+    icon: AtSign,
+    accent: 'text-indigo-700 bg-indigo-50 border-indigo-100',
   },
   SOURCE_MATERIAL_ADDED: {
     label: 'Исходные данные',
@@ -99,6 +109,7 @@ function NotificationRow({
   onMarkRead: (id: string) => void;
   compact?: boolean;
 }) {
+  const { user } = useAuthStore();
   const meta = notificationTypeMeta[notification.type] || notificationTypeMeta.STATUS_CHANGED;
   const Icon = meta.icon;
   const cardName = notification.card
@@ -109,10 +120,12 @@ function NotificationRow({
       : notification.card.extraTitle || notification.card.publicId
     : null;
   const requestName = notification.adminRequest
-    ? notification.adminRequest.description.length > 120
-      ? `${notification.adminRequest.description.slice(0, 117)}...`
-      : notification.adminRequest.description
+    ? (() => {
+        const preview = stripMentionMarkup(notification.adminRequest.description);
+        return preview.length > 120 ? `${preview.slice(0, 117)}...` : preview;
+      })()
     : null;
+  const instructionName = notification.instruction?.title || null;
   const adminRequestStatusLabel =
     notification.adminRequest?.status === 'DONE'
       ? 'Выполнено'
@@ -154,7 +167,7 @@ function NotificationRow({
             {notification.title}
           </h2>
           <p className={cn('mt-1 text-slate-600 dark:text-slate-300', compact ? 'text-sm leading-5' : 'text-sm leading-6')}>
-            {notification.message}
+            <MentionText text={notification.message} />
           </p>
 
           {notification.card && (
@@ -166,7 +179,7 @@ function NotificationRow({
               </div>
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Спринт: {notification.card.sprint?.name || 'Не назначен'}
-                {notification.actor?.fullName ? ` • Изменение: ${notification.actor.fullName}` : ''}
+                {notification.actor?.fullName ? ` • Изменение: ${displayUserName(notification.actor, user?.id)}` : ''}
                 {' • '}
                 {formatDateTime(notification.createdAt)}
               </div>
@@ -182,8 +195,23 @@ function NotificationRow({
               </div>
               <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Статус: {adminRequestStatusLabel}
-                {notification.adminRequest.createdBy?.fullName ? ` • Автор: ${notification.adminRequest.createdBy.fullName}` : ''}
-                {notification.actor?.fullName ? ` • Изменение: ${notification.actor.fullName}` : ''}
+                {notification.adminRequest.createdBy?.fullName ? ` • Автор: ${displayUserName(notification.adminRequest.createdBy, user?.id)}` : ''}
+                {notification.actor?.fullName ? ` • Изменение: ${displayUserName(notification.actor, user?.id)}` : ''}
+                {' • '}
+                {formatDateTime(notification.createdAt)}
+              </div>
+            </div>
+          )}
+
+          {notification.instruction && (
+            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/70">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+                <span>{notification.instruction.publicId}</span>
+                <span className="text-slate-300 dark:text-slate-600">•</span>
+                <span className="truncate">{instructionName}</span>
+              </div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {notification.actor?.fullName ? `Изменение: ${displayUserName(notification.actor, user?.id)}` : 'Инструкция'}
                 {' • '}
                 {formatDateTime(notification.createdAt)}
               </div>
@@ -206,7 +234,11 @@ function NotificationRow({
             onClick={() => onOpenItem(notification)}
             className="btn-primary"
           >
-            {notification.adminRequest ? 'Открыть обращение' : 'Открыть карточку'}
+            {notification.adminRequest
+              ? 'Открыть обращение'
+              : notification.instruction
+              ? 'Открыть инструкцию'
+              : 'Открыть карточку'}
           </button>
         </div>
       </div>
@@ -266,6 +298,11 @@ export function NotificationsCenterContent({
 
     if (notification.adminRequest?.publicId) {
       router.push(`/requests?focus=${notification.adminRequest.publicId}`);
+      return;
+    }
+
+    if (notification.instruction?.publicId) {
+      router.push(`/instructions/${notification.instruction.publicId}`);
     }
   };
 

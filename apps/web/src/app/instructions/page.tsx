@@ -12,6 +12,7 @@ import { InstructionStatusBadge } from '@/components/instructions/InstructionSta
 import { InstructionStatus, instructionsApi } from '@/lib/api/instructions';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { formatRelative } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 
 const STATUS_FILTERS: Array<{ value: 'ALL' | InstructionStatus; label: string }> = [
   { value: 'ALL', label: 'Все доступные' },
@@ -265,7 +266,7 @@ export default function InstructionsPage() {
                           )}
 
                           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                            <span>Автор: {instruction.createdBy.fullName}</span>
+                            <span>Автор: {displayUserName(instruction.createdBy, user?.id)}</span>
                             <span>Вложений: {instruction._count?.attachments ?? instruction.attachments.length}</span>
                             <span>Карточек: {instruction._count?.cardLinks ?? instruction.cardLinks.length}</span>
                           </div>

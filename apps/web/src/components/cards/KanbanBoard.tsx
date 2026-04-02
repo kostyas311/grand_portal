@@ -7,6 +7,7 @@ import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cardsApi } from '@/lib/api';
 import { formatDate, getDueDateIndicator } from '@/lib/utils';
+import { displayUserName } from '@/lib/user-display';
 import { useAuthStore } from '@/lib/store/auth.store';
 
 const COLUMNS = [
@@ -237,6 +238,8 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                   const ind = getDueDateIndicator(card.dueDate, card.status);
                   const hasNoSourceMaterials = !!card.withoutSourceMaterials && (card._count?.sourceMaterials ?? 0) === 0;
                   const hasChildren = (card.children?.length ?? 0) > 0;
+                  const sourceName = card.dataSource?.name?.trim();
+                  const extraTitle = card.extraTitle?.trim();
                   return (
                     <div
                       key={card.id}
@@ -271,9 +274,9 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                         </div>
                       )}
                       <p className={`kanban-card-title ${hasChildren ? 'kanban-parent-title' : ''}`}>
-                        {card.dataSource?.name || '—'}
-                        {card.extraTitle && (
-                          <span className="kanban-card-subtitle"> — {card.extraTitle}</span>
+                        {sourceName || extraTitle || 'Карточка'}
+                        {sourceName && extraTitle && (
+                          <span className="kanban-card-subtitle"> — {extraTitle}</span>
                         )}
                       </p>
                       {card.dueDate && (
@@ -282,7 +285,7 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
                         </p>
                       )}
                       {card.executor && (
-                        <p className="kanban-card-meta mt-1 truncate">{card.executor.fullName}</p>
+                        <p className="kanban-card-meta mt-1 truncate">{displayUserName(card.executor, user?.id)}</p>
                       )}
                     </div>
                   );

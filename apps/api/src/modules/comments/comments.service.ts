@@ -3,6 +3,10 @@ import { CardStatus, NotificationType, UserRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  compactMentionPreview,
+  extractMentionedUserIdsFromText,
+} from '../../common/utils/mentions.util';
 
 @Injectable()
 export class CommentsService {
@@ -92,6 +96,19 @@ export class CommentsService {
       extraUserIds: [card.createdById, card.executorId, card.reviewerId],
       excludeUserIds: [userId],
     });
+
+    const mentionedUserIds = extractMentionedUserIdsFromText(dto.text);
+    if (mentionedUserIds.length > 0) {
+      await this.notifications.createForCardEvent(card.id, {
+        type: NotificationType.USER_MENTIONED,
+        title: 'Вас упомянули в комментарии',
+        message: `В комментарии к карточке «${this.getCardDisplayName(card)}» вас упомянули.${compactMentionPreview(dto.text) ? ` Текст: ${compactMentionPreview(dto.text)}` : ''}`,
+        actorId: userId,
+        includeWatchers: false,
+        extraUserIds: mentionedUserIds,
+        excludeUserIds: [userId],
+      });
+    }
 
     return comment;
   }

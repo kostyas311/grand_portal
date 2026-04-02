@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -17,8 +18,11 @@ import { NotificationEmailSettingsModule } from './modules/notification-email-se
 import { InstructionsModule } from './modules/instructions/instructions.module';
 import { SprintsModule } from './modules/sprints/sprints.module';
 import { ComponentsModule } from './modules/components/components.module';
+import { RequestTimeoutInterceptor } from './common/interceptors/request-timeout.interceptor';
+import { HealthController } from './health.controller';
 
 @Module({
+  controllers: [HealthController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
@@ -38,6 +42,12 @@ import { ComponentsModule } from './modules/components/components.module';
     InstructionsModule,
     ComponentsModule,
     SprintsModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestTimeoutInterceptor,
+    },
   ],
 })
 export class AppModule {}

@@ -20,6 +20,11 @@ import { AssignDto } from './dto/assign.dto';
 import { CardsFilterDto } from './dto/cards-filter.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SprintsService } from '../sprints/sprints.service';
+import {
+  compactMentionPreview,
+  extractMentionedUserIdsFromText,
+  getNewMentionedUserIds,
+} from '../../common/utils/mentions.util';
 
 const CARD_INCLUDE = {
   dataSource: { select: { id: true, name: true } },
@@ -362,6 +367,14 @@ export class CardsService {
       excludeUserIds: [userId],
     });
 
+    await this.notifyMentionedUsersForCard(
+      card,
+      extractMentionedUserIdsFromText(dto.description),
+      userId,
+      'в описании карточки',
+      dto.description,
+    );
+
     return card;
   }
 
@@ -401,6 +414,20 @@ export class CardsService {
       excludeUserIds: [userId],
     });
 
+    if (dto.description !== undefined) {
+      await this.notifyMentionedUsersForCard(
+        updated,
+        getNewMentionedUserIds(
+          extractMentionedUserIdsFromText(card.description),
+          extractMentionedUserIdsFromText(dto.description),
+          [userId],
+        ),
+        userId,
+        'в описании карточки',
+        dto.description,
+      );
+    }
+
     return updated;
   }
 
@@ -414,6 +441,11 @@ export class CardsService {
 
     const oldStatus = card.status;
     const newStatus = dto.status;
+
+    // Repeated submits can race from the UI; treat same-status replays as idempotent.
+    if (oldStatus === newStatus) {
+      return card;
+    }
 
     // Validate transition (skip for admin force)
     if (!isForce) {
@@ -486,6 +518,21 @@ export class CardsService {
         },
       });
     }
+
+    const statusMentionIds = Array.from(
+      new Set([
+        ...extractMentionedUserIdsFromText(dto.comment),
+        ...extractMentionedUserIdsFromText(dto.reason),
+      ]),
+    );
+
+    await this.notifyMentionedUsersForCard(
+      updated,
+      statusMentionIds,
+      userId,
+      'в комментарии к изменению статуса',
+      dto.comment || dto.reason || undefined,
+    );
 
     return updated;
   }
@@ -853,6 +900,28 @@ export class CardsService {
       default:
         return `Статус карточки «${baseName}» изменён.${commentSuffix}`;
     }
+  }
+
+  private async notifyMentionedUsersForCard(
+    card: any,
+    mentionedUserIds: string[],
+    actorId: string,
+    contextLabel: string,
+    text?: string,
+  ) {
+    if (!mentionedUserIds.length) {
+      return;
+    }
+
+    await this.notifications.createForCardEvent(card.id, {
+      type: NotificationType.USER_MENTIONED,
+      title: 'Вас упомянули в карточке',
+      message: `В карточке «${this.getCardDisplayName(card)}» вас упомянули ${contextLabel}.${compactMentionPreview(text) ? ` Текст: ${compactMentionPreview(text)}` : ''}`,
+      actorId,
+      includeWatchers: false,
+      extraUserIds: mentionedUserIds,
+      excludeUserIds: [actorId],
+    });
   }
 
   private async assertAssignableUsers(executorId: string, reviewerId: string) {

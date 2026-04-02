@@ -39,8 +39,8 @@ export class UsersController {
 
   @Get('directory')
   // Все авторизованные пользователи могут получить список для назначения на карточки
-  findDirectory() {
-    return this.usersService.findDirectory();
+  findDirectory(@Query('includeAdmins') includeAdmins?: string) {
+    return this.usersService.findDirectory(includeAdmins === 'true');
   }
 
   @Patch('profile')

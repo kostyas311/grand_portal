@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { Sidebar } from './Sidebar';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { HelpButton } from '@/components/shared/HelpButton';
 import { useAuthStore, SESSION_TIMEOUT_MS } from '@/lib/store/auth.store';
 import { authApi } from '@/lib/api';
 import { setAccessToken, getAccessToken } from '@/lib/api/client';
@@ -76,6 +77,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <main className="main-content relative flex-1">
         <div className="app-topbar">
           <div className="app-topbar-inner">
+            <HelpButton />
             <NotificationBell />
           </div>
         </div>

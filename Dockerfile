@@ -40,6 +40,7 @@ COPY --from=api-builder /app/api/dist ./dist
 # Prisma клиент
 COPY --from=api-builder /app/api/node_modules/.prisma ./node_modules/.prisma
 COPY --from=api-builder /app/api/node_modules/@prisma ./node_modules/@prisma
+COPY --from=api-builder /app/api/node_modules/prisma ./node_modules/prisma
 
 # Prisma схема и миграции
 COPY apps/api/prisma ./prisma
@@ -48,7 +49,7 @@ RUN mkdir -p /app/storage
 
 EXPOSE 3001
 
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push && node dist/main.js"]
 
 
 # ══════════════════════════════════════════════════════════════

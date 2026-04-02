@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/lib/store/auth.store';
 import { authApi } from '@/lib/api';
+import { displayUserName } from '@/lib/user-display';
 import { toast } from 'sonner';
 import { BrandBlock } from '@/components/shared/BrandBlock';
 
@@ -135,7 +136,7 @@ export function Sidebar() {
             <User className="w-4 h-4 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-white text-sm font-medium truncate">{user?.fullName}</div>
+            <div className="text-white text-sm font-medium truncate">{displayUserName(user, user?.id)}</div>
             <div className="text-blue-200 text-xs truncate">
               {user?.role ? (ROLE_LABELS[user.role] || user.role) : ''}
             </div>

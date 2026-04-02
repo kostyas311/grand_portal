@@ -15,8 +15,10 @@ export const usersApi = {
     const { data } = await apiClient.get('/users', { params: { search } });
     return data;
   },
-  getDirectory: async () => {
-    const { data } = await apiClient.get('/users/directory');
+  getDirectory: async (includeAdmins = false) => {
+    const { data } = await apiClient.get('/users/directory', {
+      params: includeAdmins ? { includeAdmins: true } : undefined,
+    });
     return data;
   },
   getById: async (id: string) => {

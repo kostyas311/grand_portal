@@ -50,105 +50,112 @@ export class ResultsService {
     this.assertCanManageWorkingResult(card, userId, userRole);
     cardId = card.id; // use UUID
 
-    // Mark all previous versions as not current
-    await this.prisma.resultVersion.updateMany({
-      where: { cardId, isCurrent: true },
-      data: { isCurrent: false },
-    });
-
-    // Get next version number
-    const lastVersion = await this.prisma.resultVersion.findFirst({
-      where: { cardId },
-      orderBy: { versionNumber: 'desc' },
-    });
-    const versionNumber = (lastVersion?.versionNumber || 0) + 1;
-
-    const version = await this.prisma.resultVersion.create({
-      data: {
-        cardId,
-        versionNumber,
-        createdById: userId,
-        comment: dto.comment,
-        statusContext: card.status,
-        isCurrent: true,
-      },
-    });
-
-    // Add items: files
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const subdir = `results/${cardId}/v${versionNumber}`;
-        const { relativePath, fileSize, fileHash } = await this.filesService.saveFile(
-          file.buffer,
-          file.originalname,
-          subdir,
-        );
-
-        await this.prisma.resultItem.create({
-          data: {
-            resultVersionId: version.id,
-            itemType: MaterialType.FILE,
-            title: file.originalname,
-            filePath: relativePath,
-            fileName: file.originalname,
-            fileSize,
-            mimeType: file.mimetype,
-            fileHash,
-          },
-        });
-      }
-    }
-
-    // Add items: external links
-    if (dto.links && dto.links.length > 0) {
-      for (const link of dto.links) {
-        await this.prisma.resultItem.create({
-          data: {
-            resultVersionId: version.id,
-            itemType: MaterialType.EXTERNAL_LINK,
-            title: link.title || link.url,
-            description: link.description,
-            externalUrl: link.url,
-          },
-        });
-      }
-    }
-
-    // Validate: version must have at least one item
-    const itemCount = await this.prisma.resultItem.count({
-      where: { resultVersionId: version.id },
-    });
-    if (itemCount === 0) {
-      await this.prisma.resultVersion.delete({ where: { id: version.id } });
+    const preparedLinks = dto.links || [];
+    if ((!files || files.length === 0) && preparedLinks.length === 0) {
       throw new BadRequestException('Результат должен содержать хотя бы один файл или ссылку');
     }
 
-    await this.prisma.cardHistory.create({
-      data: {
-        cardId,
-        userId,
-        actionType: 'RESULT_ADDED',
-        newValue: { versionNumber, itemCount },
-      },
+    const lastVersion = await this.prisma.resultVersion.findFirst({
+      where: { cardId },
+      orderBy: { versionNumber: 'desc' },
+      select: { versionNumber: true },
     });
+    const versionNumber = (lastVersion?.versionNumber || 0) + 1;
 
-    const createdVersion = await this.prisma.resultVersion.findUnique({
-      where: { id: version.id },
-      include: {
-        createdBy: { select: { id: true, fullName: true } },
-        items: true,
-      },
-    });
+    const preparedFiles: Array<{
+      relativePath: string;
+      fileSize: number;
+      fileHash: string;
+      originalName: string;
+      mimeType: string;
+    }> = [];
 
-    await this.notifications.createForCardEvent(cardId, {
-      type: NotificationType.RESULT_ADDED,
-      title: 'Загружен новый результат',
-      message: `По карточке «${this.getCardDisplayName(card)}» загружена версия результата №${versionNumber}.`,
-      actorId: userId,
-      excludeUserIds: [userId],
-    });
+    try {
+      for (const file of files || []) {
+        const subdir = `results/${cardId}/v${versionNumber}`;
+        const savedFile = await this.filesService.saveUploadedFile(file, subdir);
+        preparedFiles.push({
+          ...savedFile,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+        });
+      }
 
-    return createdVersion;
+      const createdVersion = await this.prisma.$transaction(async (tx) => {
+        await tx.resultVersion.updateMany({
+          where: { cardId, isCurrent: true },
+          data: { isCurrent: false },
+        });
+
+        const version = await tx.resultVersion.create({
+          data: {
+            cardId,
+            versionNumber,
+            createdById: userId,
+            comment: dto.comment,
+            statusContext: card.status,
+            isCurrent: true,
+          },
+        });
+
+        if (preparedFiles.length > 0) {
+          await tx.resultItem.createMany({
+            data: preparedFiles.map((file) => ({
+              resultVersionId: version.id,
+              itemType: MaterialType.FILE,
+              title: file.originalName,
+              filePath: file.relativePath,
+              fileName: file.originalName,
+              fileSize: file.fileSize,
+              mimeType: file.mimeType,
+              fileHash: file.fileHash,
+            })),
+          });
+        }
+
+        if (preparedLinks.length > 0) {
+          await tx.resultItem.createMany({
+            data: preparedLinks.map((link) => ({
+              resultVersionId: version.id,
+              itemType: MaterialType.EXTERNAL_LINK,
+              title: link.title || link.url,
+              description: link.description,
+              externalUrl: link.url,
+            })),
+          });
+        }
+
+        await tx.cardHistory.create({
+          data: {
+            cardId,
+            userId,
+            actionType: 'RESULT_ADDED',
+            newValue: { versionNumber, itemCount: preparedFiles.length + preparedLinks.length },
+          },
+        });
+
+        return tx.resultVersion.findUnique({
+          where: { id: version.id },
+          include: {
+            createdBy: { select: { id: true, fullName: true } },
+            items: true,
+          },
+        });
+      });
+
+      await this.notifications.createForCardEvent(cardId, {
+        type: NotificationType.RESULT_ADDED,
+        title: 'Загружен новый результат',
+        message: `По карточке «${this.getCardDisplayName(card)}» загружена версия результата №${versionNumber}.`,
+        actorId: userId,
+        excludeUserIds: [userId],
+      });
+
+      return createdVersion;
+    } catch (error) {
+      await Promise.all(preparedFiles.map((file) => this.filesService.deleteFile(file.relativePath)));
+      throw error;
+    }
   }
 
   async downloadVersionAll(cardId: string, versionId: string, res: Response) {
@@ -167,7 +174,7 @@ export class ResultsService {
 
     if (files.length === 0) throw new BadRequestException('Нет файлов для скачивания');
 
-    const totalSize = this.filesService.getTotalSize(files.map((f) => f.relativePath));
+    const totalSize = await this.filesService.getTotalSize(files.map((f) => f.relativePath));
     if (totalSize > this.zipSizeLimit) {
       throw new BadRequestException(
         `Суммарный размер (${Math.round(totalSize / 1024 / 1024)} MB) превышает лимит. Скачайте файлы по отдельности.`,
@@ -210,7 +217,7 @@ export class ResultsService {
     });
     if (!item) throw new NotFoundException('Элемент не найден');
 
-    if (item.filePath) this.filesService.deleteFile(item.filePath);
+    if (item.filePath) await this.filesService.deleteFile(item.filePath);
     await this.prisma.resultItem.delete({ where: { id: itemId } });
 
     return { message: 'Элемент удалён' };
