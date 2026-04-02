@@ -4,13 +4,13 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { memoryStorage } from 'multer';
 import { UserRole } from '@prisma/client';
 import { SourceMaterialsService } from './source-materials.service';
 import { AddMaterialDto } from './dto/add-material.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { createDiskUploadOptions } from '../../common/utils/upload.util';
 
 @ApiTags('source-materials')
 @ApiBearerAuth()
@@ -25,10 +25,12 @@ export class SourceMaterialsController {
   }
 
   @Post()
-  @UseInterceptors(FileInterceptor('file', {
-    storage: memoryStorage(),
-    limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE || '524288000') },
-  }))
+  @UseInterceptors(
+    FileInterceptor(
+      'file',
+      createDiskUploadOptions(parseInt(process.env.MAX_FILE_SIZE || '524288000', 10), 1),
+    ),
+  )
   addMaterial(
     @Param('cardId') cardId: string,
     @Body() dto: AddMaterialDto,

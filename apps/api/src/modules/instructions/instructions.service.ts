@@ -12,6 +12,11 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CreateInstructionDto } from './dto/create-instruction.dto';
 import { ListInstructionsDto } from './dto/list-instructions.dto';
 import { UpdateInstructionDto } from './dto/update-instruction.dto';
+import {
+  compactMentionPreview,
+  extractMentionedUserIdsFromHtml,
+  getNewMentionedUserIds,
+} from '../../common/utils/mentions.util';
 
 const INSTRUCTION_INCLUDE = {
   folder: { select: { id: true, name: true } },
@@ -154,7 +159,7 @@ export class InstructionsService {
       throw new BadRequestException('Заполните содержимое инструкции');
     }
 
-    return this.prisma.instruction.create({
+    const created = await this.prisma.instruction.create({
       data: {
         publicId,
         title: cleanTitle,
@@ -168,6 +173,16 @@ export class InstructionsService {
       },
       include: INSTRUCTION_INCLUDE,
     });
+
+    await this.notifyMentionedUsersForInstruction(
+      created,
+      extractMentionedUserIdsFromHtml(dto.contentHtml),
+      userId,
+      'в тексте инструкции',
+      dto.contentHtml,
+    );
+
+    return created;
   }
 
   async update(id: string, dto: UpdateInstructionDto, userId: string, userRole?: UserRole) {
@@ -192,7 +207,7 @@ export class InstructionsService {
       userId,
     );
 
-    return this.prisma.instruction.update({
+    const updated = await this.prisma.instruction.update({
       where: { id: instruction.id },
       data: {
         title: nextTitle,
@@ -210,6 +225,20 @@ export class InstructionsService {
       },
       include: INSTRUCTION_INCLUDE,
     });
+
+    await this.notifyMentionedUsersForInstruction(
+      updated,
+      getNewMentionedUserIds(
+        extractMentionedUserIdsFromHtml(instruction.contentHtml),
+        extractMentionedUserIdsFromHtml(nextContentHtml),
+        [userId],
+      ),
+      userId,
+      'в тексте инструкции',
+      nextContentHtml,
+    );
+
+    return updated;
   }
 
   async remove(id: string, userId: string, userRole?: UserRole) {
@@ -220,7 +249,7 @@ export class InstructionsService {
       where: { instructionId: instruction.id },
     });
 
-    attachments.forEach((attachment) => this.filesService.deleteFile(attachment.filePath));
+    await Promise.all(attachments.map((attachment) => this.filesService.deleteFile(attachment.filePath)));
     await this.prisma.instruction.delete({ where: { id: instruction.id } });
 
     return { message: 'Инструкция удалена' };
@@ -246,9 +275,8 @@ export class InstructionsService {
         throw new BadRequestException(`Файл «${file.originalname}» превышает лимит 10 МБ`);
       }
 
-      const { relativePath, fileSize, fileHash } = await this.filesService.saveFile(
-        file.buffer,
-        file.originalname,
+      const { relativePath, fileSize, fileHash } = await this.filesService.saveUploadedFile(
+        file,
         `instructions/${instruction.id}/attachments`,
       );
 
@@ -293,7 +321,7 @@ export class InstructionsService {
       throw new NotFoundException('Вложение не найдено');
     }
 
-    this.filesService.deleteFile(attachment.filePath);
+    await this.filesService.deleteFile(attachment.filePath);
     await this.prisma.instructionAttachment.delete({ where: { id: attachment.id } });
 
     return { message: 'Вложение удалено' };
@@ -465,7 +493,11 @@ export class InstructionsService {
     extraTitle?: string | null;
     dataSource?: { name?: string | null } | null;
   }) {
-    return card.extraTitle || card.dataSource?.name || card.publicId;
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private async resolveFolderId(folderId: string | undefined, newFolderName: string | undefined, userId: string) {
@@ -593,5 +625,26 @@ export class InstructionsService {
     }
 
     return `${prefix}${seq.toString().padStart(4, '0')}`;
+  }
+
+  private async notifyMentionedUsersForInstruction(
+    instruction: { id: string; title: string; publicId?: string | null },
+    mentionedUserIds: string[],
+    actorId: string,
+    contextLabel: string,
+    html?: string,
+  ) {
+    if (!mentionedUserIds.length) {
+      return;
+    }
+
+    await this.notifications.createForInstructionEvent(instruction.id, {
+      type: NotificationType.USER_MENTIONED,
+      title: 'Вас упомянули в инструкции',
+      message: `В инструкции «${instruction.title}» вас упомянули ${contextLabel}.${compactMentionPreview(html, 160) ? ` Текст: ${compactMentionPreview(html, 160)}` : ''}`,
+      actorId,
+      recipientUserIds: mentionedUserIds,
+      excludeUserIds: [actorId],
+    });
   }
 }

@@ -6,6 +6,7 @@ export { adminRequestsApi } from './adminRequests';
 export { notificationEmailSettingsApi } from './notificationEmailSettings';
 export { instructionsApi } from './instructions';
 export { sprintsApi } from './sprints';
+export { componentsApi } from './components';
 
 import { apiClient } from './client';
 
@@ -14,8 +15,10 @@ export const usersApi = {
     const { data } = await apiClient.get('/users', { params: { search } });
     return data;
   },
-  getDirectory: async () => {
-    const { data } = await apiClient.get('/users/directory');
+  getDirectory: async (includeAdmins = false) => {
+    const { data } = await apiClient.get('/users/directory', {
+      params: includeAdmins ? { includeAdmins: true } : undefined,
+    });
     return data;
   },
   getById: async (id: string) => {
@@ -101,6 +104,22 @@ export const dataSourcesApi = {
   },
   detachInstruction: async (id: string, instructionId: string) => {
     const { data } = await apiClient.delete(`/data-sources/${id}/instructions/${instructionId}`);
+    return data;
+  },
+  getComponents: async (id: string) => {
+    const { data } = await apiClient.get(`/data-sources/${id}/components`);
+    return data as Array<{
+      id: string;
+      createdAt: string;
+      component: import('./components').ComponentItem;
+    }>;
+  },
+  attachComponent: async (id: string, componentId: string) => {
+    const { data } = await apiClient.post(`/data-sources/${id}/components/${componentId}`);
+    return data;
+  },
+  detachComponent: async (id: string, componentId: string) => {
+    const { data } = await apiClient.delete(`/data-sources/${id}/components/${componentId}`);
     return data;
   },
 };

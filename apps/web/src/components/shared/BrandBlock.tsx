@@ -33,8 +33,13 @@ export function BrandBlock({ variant = 'sidebar' }: BrandBlockProps) {
       </div>
 
       <div className={cn('brand-copy', isSidebar ? 'brand-copy-sidebar' : 'brand-copy-auth')}>
-        <span className={cn('brand-kicker', isSidebar ? 'brand-kicker-sidebar' : 'brand-kicker-auth')}>
-          Нормбаза
+        <span className={cn('brand-kicker-row', isSidebar ? 'brand-kicker-row-sidebar' : 'brand-kicker-row-auth')}>
+          <span className={cn('brand-kicker', isSidebar ? 'brand-kicker-sidebar' : 'brand-kicker-auth')}>
+            Нормбаза
+          </span>
+          <span className={cn('brand-beta-glyph', isSidebar ? 'brand-beta-glyph-sidebar' : 'brand-beta-glyph-auth')} aria-label="Бета-версия" title="Бета-версия">
+            β
+          </span>
         </span>
         <span className={cn('brand-title', isSidebar ? 'brand-title-sidebar' : 'brand-title-auth')}>
           Управление сметно-нормативной документацией

@@ -15,7 +15,6 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
-import { memoryStorage } from 'multer';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -24,6 +23,7 @@ import { CreateInstructionDto } from './dto/create-instruction.dto';
 import { ListInstructionsDto } from './dto/list-instructions.dto';
 import { UpdateInstructionDto } from './dto/update-instruction.dto';
 import { InstructionsService } from './instructions.service';
+import { createDiskUploadOptions } from '../../common/utils/upload.util';
 
 @ApiTags('instructions')
 @ApiBearerAuth()
@@ -68,10 +68,7 @@ export class InstructionsController {
   }
 
   @Post('instructions/:id/attachments')
-  @UseInterceptors(FilesInterceptor('files', 10, {
-    storage: memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-  }))
+  @UseInterceptors(FilesInterceptor('files', 10, createDiskUploadOptions(10 * 1024 * 1024, 10)))
   uploadAttachments(
     @Param('id') id: string,
     @CurrentUser() user: any,

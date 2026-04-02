@@ -25,6 +25,13 @@ export interface NotificationAdminRequestSummary {
   };
 }
 
+export interface NotificationInstructionSummary {
+  id: string;
+  publicId: string;
+  title: string;
+  summary?: string | null;
+}
+
 export interface NotificationActorSummary {
   id: string;
   fullName: string;
@@ -40,6 +47,7 @@ export interface NotificationItem {
   createdAt: string;
   card?: NotificationCardSummary | null;
   adminRequest?: NotificationAdminRequestSummary | null;
+  instruction?: NotificationInstructionSummary | null;
   actor?: NotificationActorSummary | null;
 }
 

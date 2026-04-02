@@ -43,11 +43,11 @@ export class UsersService {
     });
   }
 
-  async findDirectory() {
+  async findDirectory(includeAdmins = false) {
     return this.prisma.user.findMany({
       where: {
         isActive: true,
-        role: { not: UserRole.ADMIN },
+        ...(includeAdmins ? {} : { role: { not: UserRole.ADMIN } }),
       },
       select: USER_SELECT,
       orderBy: { fullName: 'asc' },

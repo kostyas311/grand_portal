@@ -27,7 +27,7 @@ export class DataSourcesService {
         createdBy: {
           select: { id: true, fullName: true },
         },
-        _count: { select: { cards: true, instructionLinks: true } },
+        _count: { select: { cards: true, instructionLinks: true, componentLinks: true } },
       },
     });
   }
@@ -37,7 +37,7 @@ export class DataSourcesService {
       where: { id },
       include: {
         createdBy: { select: { id: true, fullName: true } },
-        _count: { select: { cards: true, instructionLinks: true } },
+        _count: { select: { cards: true, instructionLinks: true, componentLinks: true } },
       },
     });
     if (!source) throw new NotFoundException('Источник данных не найден');

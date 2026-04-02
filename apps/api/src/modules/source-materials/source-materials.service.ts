@@ -41,41 +41,47 @@ export class SourceMaterialsService {
       if (!file) throw new BadRequestException('Файл не загружен');
 
       const subdir = `source-materials/${resolvedCardId}`;
-      const { relativePath, fileSize, fileHash } = await this.filesService.saveFile(
-        file.buffer,
-        file.originalname,
-        subdir,
-      );
+      const { relativePath, fileSize, fileHash } = await this.filesService.saveUploadedFile(file, subdir);
 
-      const material = await this.prisma.sourceMaterial.create({
-        data: {
-          cardId: resolvedCardId,
-          materialType: MaterialType.FILE,
-          title: dto.title || file.originalname,
-          description: dto.description,
-          filePath: relativePath,
-          fileName: file.originalname,
-          fileSize,
-          mimeType: file.mimetype,
-          fileHash,
-          uploadedById: userId,
-        },
-        include: { uploadedBy: { select: { id: true, fullName: true } } },
-      });
+      let material;
+      try {
+        material = await this.prisma.$transaction(async (tx) => {
+          const createdMaterial = await tx.sourceMaterial.create({
+            data: {
+              cardId: resolvedCardId,
+              materialType: MaterialType.FILE,
+              title: dto.title || file.originalname,
+              description: dto.description,
+              filePath: relativePath,
+              fileName: file.originalname,
+              fileSize,
+              mimeType: file.mimetype,
+              fileHash,
+              uploadedById: userId,
+            },
+            include: { uploadedBy: { select: { id: true, fullName: true } } },
+          });
 
-      await this.prisma.cardHistory.create({
-        data: {
-          cardId: resolvedCardId,
-          userId,
-          actionType: 'SOURCE_MATERIAL_ADDED',
-          newValue: { title: material.title, type: 'FILE' },
-        },
-      });
+          await tx.cardHistory.create({
+            data: {
+              cardId: resolvedCardId,
+              userId,
+              actionType: 'SOURCE_MATERIAL_ADDED',
+              newValue: { title: createdMaterial.title, type: 'FILE' },
+            },
+          });
+
+          return createdMaterial;
+        });
+      } catch (error) {
+        await this.filesService.deleteFile(relativePath);
+        throw error;
+      }
 
       await this.notifications.createForCardEvent(resolvedCardId, {
         type: NotificationType.SOURCE_MATERIAL_ADDED,
         title: 'Добавлены исходные данные',
-        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        message: `В карточку «${this.getCardDisplayName(card)}» добавлен новый материал «${material.title}».`,
         actorId: userId,
         excludeUserIds: [userId],
       });
@@ -108,7 +114,7 @@ export class SourceMaterialsService {
       await this.notifications.createForCardEvent(resolvedCardId, {
         type: NotificationType.SOURCE_MATERIAL_ADDED,
         title: 'Добавлены исходные данные',
-        message: `В карточку «${card.extraTitle || card.publicId}» добавлен новый материал «${material.title}».`,
+        message: `В карточку «${this.getCardDisplayName(card)}» добавлен новый материал «${material.title}».`,
         actorId: userId,
         excludeUserIds: [userId],
       });
@@ -156,7 +162,7 @@ export class SourceMaterialsService {
 
     if (files.length === 0) throw new BadRequestException('Нет файлов для скачивания');
 
-    const totalSize = this.filesService.getTotalSize(files.map((f) => f.relativePath));
+    const totalSize = await this.filesService.getTotalSize(files.map((f) => f.relativePath));
     if (totalSize > this.zipSizeLimit) {
       throw new BadRequestException(
         `Суммарный размер файлов (${Math.round(totalSize / 1024 / 1024)} MB) превышает лимит для ZIP-архива. Скачайте файлы по отдельности.`,
@@ -184,7 +190,7 @@ export class SourceMaterialsService {
     this.assertCanManageWorkingMaterials(card, userId, userRole);
 
     if (material.filePath) {
-      this.filesService.deleteFile(material.filePath);
+      await this.filesService.deleteFile(material.filePath);
     }
 
     await this.prisma.sourceMaterial.delete({ where: { id: materialId } });
@@ -204,9 +210,24 @@ export class SourceMaterialsService {
   private async getCard(cardId: string) {
     const card = await this.prisma.card.findFirst({
       where: { OR: [{ id: cardId }, { publicId: cardId }] },
+      include: {
+        dataSource: { select: { name: true } },
+      },
     });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return card;
+  }
+
+  private getCardDisplayName(card: {
+    publicId: string;
+    extraTitle?: string | null;
+    dataSource?: { name?: string | null } | null;
+  }) {
+    if (card.dataSource?.name && card.extraTitle) {
+      return `${card.dataSource.name} — ${card.extraTitle}`;
+    }
+
+    return card.dataSource?.name || card.extraTitle || card.publicId;
   }
 
   private assertCanManageWorkingMaterials(card: any, userId: string, userRole?: UserRole) {

@@ -10,8 +10,10 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2, AlertTriangle, Plus, Paperclip, Link as LinkIcon, X, FileText, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { cardsApi, dataSourcesApi, usersApi, materialsApi, sprintsApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store/auth.store';
+import { displayUserName } from '@/lib/user-display';
 import type { User } from '@/lib/store/auth.store';
 
 const schema = z.object({
@@ -101,6 +103,7 @@ function NewCardForm() {
   const withoutSourceMaterials = watch('withoutSourceMaterials');
   const selectedSprintId = watch('sprintId');
   const selectedReviewerId = watch('reviewerId');
+  const descriptionValue = watch('description') || '';
 
   useEffect(() => {
     if (currentSprint && !selectedSprintId) {
@@ -294,10 +297,12 @@ function NewCardForm() {
 
               <div>
                 <label className="label">Краткое описание</label>
-                <textarea
-                  className="input min-h-20 resize-none"
+                <MentionTextarea
+                  value={descriptionValue}
+                  onChange={(value) => setValue('description', value, { shouldDirty: true })}
+                  className="resize-none"
+                  minHeightClass="min-h-20"
                   placeholder="Описание задачи и особенностей..."
-                  {...register('description')}
                 />
               </div>
             </div>
@@ -509,7 +514,7 @@ function NewCardForm() {
                   <select className={`input ${errors.executorId ? 'input-error' : ''}`} {...register('executorId')}>
                     <option value="">— Выберите исполнителя —</option>
                     {assignableUsers.map((u: User) => (
-                      <option key={u.id} value={u.id}>{u.fullName}</option>
+                      <option key={u.id} value={u.id}>{displayUserName(u, user?.id)}</option>
                     ))}
                   </select>
                   {errors.executorId && <p className="error-message">{errors.executorId.message}</p>}
@@ -519,7 +524,7 @@ function NewCardForm() {
                   <select className="input" {...register('reviewerId')}>
                     <option value="">— Выберите проверяющего —</option>
                     {assignableUsers.map((u: User) => (
-                      <option key={u.id} value={u.id}>{u.fullName}</option>
+                      <option key={u.id} value={u.id}>{displayUserName(u, user?.id)}</option>
                     ))}
                   </select>
                   {errors.reviewerId && <p className="error-message">{errors.reviewerId.message}</p>}

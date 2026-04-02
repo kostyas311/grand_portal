@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, Archive, ArchiveRestore, Edit, BookOpen, ExternalLink, Trash2, X, Check } from 'lucide-react';
+import { Plus, Search, Archive, ArchiveRestore, BookOpen, ExternalLink, Trash2, X, Check, Boxes } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SourceInstructionsSidebar } from '@/components/instructions/SourceInstructionsSidebar';
+import { SourceComponentsSidebar } from '@/components/components/SourceComponentsSidebar';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { dataSourcesApi } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -35,11 +36,21 @@ export default function SourcesPage() {
   const [formData, setFormData] = useState({ name: '', description: '', website: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [instructionsSource, setInstructionsSource] = useState<any | null>(null);
+  const [componentsSource, setComponentsSource] = useState<any | null>(null);
+  const isFormModalOpen = (showForm || !!editingSource) && canEdit;
 
   const { data: sources, isLoading } = useQuery({
     queryKey: ['data-sources', search, includeArchived],
     queryFn: () => dataSourcesApi.getAll(search, includeArchived),
   });
+
+  const modalSource = useMemo(() => {
+    if (!editingSource) {
+      return null;
+    }
+
+    return sources?.find((source: any) => source.id === editingSource.id) || editingSource;
+  }, [editingSource, sources]);
 
   const createMutation = useMutation({
     mutationFn: () => dataSourcesApi.create(formData),
@@ -87,7 +98,8 @@ export default function SourcesPage() {
     setShowForm(false);
   };
 
-  const handleCancelEdit = () => {
+  const closeFormModal = () => {
+    setShowForm(false);
     setEditingSource(null);
     setFormData({ name: '', description: '', website: '' });
   };
@@ -152,38 +164,6 @@ export default function SourcesPage() {
           </div>
         </div>
 
-        {/* Create form */}
-        {showForm && canEdit && (
-          <div className="card mb-4">
-            <div className="card-header">
-              <h2 className="font-medium text-gray-700">Новый источник</h2>
-            </div>
-            <div className="card-body space-y-3">
-              <div>
-                <label className="label label-required">Название</label>
-                <input type="text" className="input" placeholder="Например: Росстат"
-                  value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Описание</label>
-                <input type="text" className="input" placeholder="Краткое описание источника..."
-                  value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Сайт источника</label>
-                <input type="url" className="input" placeholder="https://rosstat.gov.ru"
-                  value={formData.website} onChange={(e) => setFormData((p) => ({ ...p, website: e.target.value }))} />
-              </div>
-              <div className="flex gap-2">
-                <button className="btn-primary" disabled={!formData.name.trim()} onClick={() => createMutation.mutate()}>
-                  Создать
-                </button>
-                <button className="btn-secondary" onClick={() => setShowForm(false)}>Отмена</button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Sources table */}
         <div className="card">
           {isLoading ? (
@@ -197,132 +177,219 @@ export default function SourcesPage() {
               description={isAdmin ? 'Добавьте первый источник данных' : 'Справочник пуст'}
             />
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Название</th>
-                  <th>Описание</th>
-                  <th>Сайт</th>
-                  <th>Инструкции</th>
-                  <th>Карточек</th>
-                  <th>Создан</th>
-                  <th>Статус</th>
-                  {canEdit && <th>Действия</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {sources.map((source: any) => (
-                  <>
-                    <tr key={source.id} className={!source.isActive ? 'opacity-50' : ''}>
-                      <td className="font-medium text-gray-800">{source.name}</td>
-                      <td className="text-gray-500 max-w-xs truncate">{source.description || '—'}</td>
-                      <td>
-                        {source.website ? (
-                          <a href={source.website} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-primary text-sm hover:underline"
-                            onClick={(e) => e.stopPropagation()}>
-                            <ExternalLink className="w-3 h-3" />Открыть
-                          </a>
-                        ) : '—'}
-                      </td>
-                      <td className="text-gray-500">{source._count?.instructionLinks || 0}</td>
-                      <td className="text-gray-500">{source._count?.cards || 0}</td>
-                      <td className="text-gray-400 text-xs">{formatDate(source.createdAt)}</td>
-                      <td>
-                        <span className={`badge ${source.isActive ? 'badge-done' : 'badge-cancelled'}`}>
-                          {source.isActive ? 'Активен' : 'Архивный'}
-                        </span>
-                      </td>
-                      {canEdit && (
+            <div className="table-shell">
+              <table className="data-table data-table-sources">
+                <thead>
+                  <tr>
+                    <th>Название</th>
+                    <th>Описание</th>
+                    <th>Сайт</th>
+                    <th>Создан</th>
+                    <th>Статус</th>
+                    {canEdit && <th>Действия</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((source: any) => (
+                      <tr
+                        key={source.id}
+                        className={`${!source.isActive ? 'opacity-50' : ''} ${canEdit ? 'cursor-pointer transition hover:bg-slate-50 dark:hover:bg-slate-800/60' : ''}`}
+                        onClick={() => {
+                          if (canEdit) {
+                            handleEdit(source);
+                          }
+                        }}
+                      >
+                          <td className="font-medium text-gray-800 dark:text-slate-100">{source.name}</td>
+                          <td className="text-gray-500 dark:text-slate-400">{source.description || '—'}</td>
                         <td>
-                          <div className="flex items-center gap-1">
-                            <button
-                              className="btn-icon"
-                              onClick={() => setInstructionsSource(source)}
-                              title="Инструкции источника"
-                            >
-                              <BookOpen className="w-4 h-4" />
-                            </button>
-                            <button className="btn-icon" onClick={() => handleEdit(source)} title="Редактировать">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              className="btn-icon"
-                              onClick={() => archiveMutation.mutate(source.id)}
-                              title={source.isActive ? 'Архивировать' : 'Восстановить'}
-                            >
-                              {source.isActive ? <Archive className="w-4 h-4" /> : <ArchiveRestore className="w-4 h-4" />}
-                            </button>
-                            {isAdmin && (
-                              deleteConfirmId === source.id ? (
-                                <>
+                          {source.website ? (
+                            <a href={source.website} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-primary text-sm hover:underline"
+                              onClick={(e) => e.stopPropagation()}>
+                              <ExternalLink className="w-3 h-3" />Открыть
+                            </a>
+                          ) : '—'}
+                        </td>
+                          <td className="text-gray-400 text-xs dark:text-slate-400">{formatDate(source.createdAt)}</td>
+                        <td>
+                          <span className={`badge ${source.isActive ? 'badge-done' : 'badge-cancelled'}`}>
+                            {source.isActive ? 'Активен' : 'Архивный'}
+                          </span>
+                        </td>
+                        {canEdit && (
+                          <td>
+                            <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                              {isAdmin && (
+                                deleteConfirmId === source.id ? (
+                                  <>
+                                    <button
+                                      className="btn-icon text-red-600 hover:bg-red-50"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        deleteMutation.mutate(source.id);
+                                      }}
+                                      title="Подтвердить удаление"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      className="btn-icon"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setDeleteConfirmId(null);
+                                      }}
+                                      title="Отмена"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
-                                    className="btn-icon text-red-600 hover:bg-red-50"
-                                    onClick={() => deleteMutation.mutate(source.id)}
-                                    title="Подтвердить удаление"
+                                    className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setDeleteConfirmId(source.id);
+                                    }}
+                                    title="Удалить"
                                   >
-                                    <Check className="w-4 h-4" />
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
-                                  <button className="btn-icon" onClick={() => setDeleteConfirmId(null)} title="Отмена">
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  className="btn-icon text-red-400 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => setDeleteConfirmId(source.id)}
-                                  title="Удалить"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {/* Inline edit row */}
-                    {editingSource?.id === source.id && (
-                      <tr key={`edit-${source.id}`} className="bg-blue-50">
-                        <td colSpan={canEdit ? 8 : 7} className="p-4">
-                          <div className="grid grid-cols-3 gap-3 mb-3">
-                            <div>
-                              <label className="label label-required">Название</label>
-                              <input type="text" className="input" value={formData.name}
-                                onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} />
+                                )
+                              )}
                             </div>
-                            <div>
-                              <label className="label">Описание</label>
-                              <input type="text" className="input" value={formData.description}
-                                onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label className="label">Сайт</label>
-                              <input type="url" className="input" value={formData.website}
-                                onChange={(e) => setFormData((p) => ({ ...p, website: e.target.value }))} />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              className="btn-primary text-xs px-3 py-1.5"
-                              disabled={!formData.name.trim() || updateMutation.isPending}
-                              onClick={() => updateMutation.mutate({ id: source.id, data: formData })}
-                            >
-                              Сохранить
-                            </button>
-                            <button className="btn-secondary text-xs px-3 py-1.5" onClick={handleCancelEdit}>
-                              Отмена
-                            </button>
-                          </div>
-                        </td>
+                          </td>
+                        )}
                       </tr>
-                    )}
-                  </>
-                ))}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
+
+        {isFormModalOpen && (
+          <div className="app-modal-overlay">
+            <div className="app-modal-backdrop" onClick={closeFormModal} />
+            <div className="app-modal-panel app-modal-panel-md">
+              <div className="app-modal-header">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">
+                    {editingSource ? 'Редактирование источника' : 'Новый источник'}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Заполни базовую информацию по источнику НСД.
+                  </p>
+                </div>
+                <button type="button" className="btn-icon" onClick={closeFormModal} title="Закрыть">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="app-modal-body space-y-4">
+                <div>
+                  <label className="label label-required">Название</label>
+                  <input type="text" className="input" placeholder="Например: Росстат"
+                    value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Описание</label>
+                  <input type="text" className="input" placeholder="Краткое описание источника..."
+                    value={formData.description} onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Сайт источника</label>
+                  <input type="url" className="input" placeholder="https://rosstat.gov.ru"
+                    value={formData.website} onChange={(e) => setFormData((p) => ({ ...p, website: e.target.value }))} />
+                </div>
+                {modalSource && (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-2">
+                      <button
+                      type="button"
+                      onClick={() => setInstructionsSource(modalSource)}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/70 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-blue-400/40 dark:hover:bg-blue-500/10"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="rounded-xl bg-blue-100 p-2 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300">
+                          <BookOpen className="h-4 w-4" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Инструкции источника</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">
+                            Связано: {modalSource._count?.instructionLinks || 0}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-300">Открыть</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setComponentsSource(modalSource)}
+                      className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-violet-200 hover:bg-violet-50/70 dark:border-slate-700 dark:bg-slate-800/80 dark:hover:border-violet-400/40 dark:hover:bg-violet-500/10"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="rounded-xl bg-violet-100 p-2 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
+                          <Boxes className="h-4 w-4" />
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Компоненты источника</span>
+                          <span className="block text-xs text-slate-500 dark:text-slate-400">
+                            Связано: {modalSource._count?.componentLinks || 0}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="text-xs font-medium text-violet-600 dark:text-violet-300">Открыть</span>
+                    </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="app-modal-actions">
+                <div className="flex w-full items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {editingSource && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => archiveMutation.mutate(editingSource.id)}
+                      >
+                        {editingSource.isActive ? (
+                          <>
+                            <Archive className="w-4 h-4" />
+                            Архивировать
+                          </>
+                        ) : (
+                          <>
+                            <ArchiveRestore className="w-4 h-4" />
+                            Восстановить
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button className="btn-secondary" onClick={closeFormModal}>Отмена</button>
+                    <button
+                      className="btn-primary"
+                      disabled={!formData.name.trim() || createMutation.isPending || updateMutation.isPending}
+                      onClick={() => {
+                        if (editingSource) {
+                          updateMutation.mutate({ id: editingSource.id, data: formData });
+                        } else {
+                          createMutation.mutate();
+                        }
+                      }}
+                    >
+                      {editingSource ? 'Сохранить' : 'Создать'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {instructionsSource && (
           <SourceInstructionsSidebar
@@ -330,6 +397,15 @@ export default function SourcesPage() {
             sourceName={instructionsSource.name}
             isOpen={!!instructionsSource}
             onClose={() => setInstructionsSource(null)}
+          />
+        )}
+
+        {componentsSource && (
+          <SourceComponentsSidebar
+            sourceId={componentsSource.id}
+            sourceName={componentsSource.name}
+            isOpen={!!componentsSource}
+            onClose={() => setComponentsSource(null)}
           />
         )}
       </div>

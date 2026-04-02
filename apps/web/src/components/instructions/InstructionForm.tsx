@@ -14,6 +14,7 @@ import {
   InstructionItem,
   instructionsApi,
 } from '@/lib/api/instructions';
+import { componentsApi } from '@/lib/api/components';
 
 const InstructionEditor = dynamic(
   () => import('./InstructionEditor').then((module) => module.InstructionEditor),
@@ -145,6 +146,12 @@ export function InstructionForm({
   const { data: folders } = useQuery({
     queryKey: ['instruction-folders'],
     queryFn: () => instructionsApi.getFolders(),
+    enabled: tokenReady,
+  });
+
+  const { data: availableComponents = [] } = useQuery({
+    queryKey: ['instruction-editor-components'],
+    queryFn: () => componentsApi.getAvailable(),
     enabled: tokenReady,
   });
 
@@ -412,6 +419,7 @@ export function InstructionForm({
             onChange={setContentHtml}
             attachments={editorAttachments}
             onAddPendingAttachments={appendPendingFiles}
+            components={availableComponents}
           />
         </div>
       </div>
