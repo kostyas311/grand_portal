@@ -45,6 +45,7 @@ CREATE TABLE data_sources (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        VARCHAR(255) NOT NULL,
   description TEXT,
+  review_protocol_id UUID REFERENCES review_protocols(id) ON DELETE SET NULL,
   is_active   BOOLEAN NOT NULL DEFAULT true,
   created_by  UUID NOT NULL REFERENCES users(id),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -53,6 +54,7 @@ CREATE TABLE data_sources (
 
 CREATE INDEX idx_data_sources_is_active ON data_sources(is_active);
 CREATE INDEX idx_data_sources_name ON data_sources(name);
+CREATE INDEX idx_data_sources_review_protocol_id ON data_sources(review_protocol_id);
 ```
 
 ### cards (основная таблица карточек)
@@ -74,6 +76,7 @@ CREATE TABLE cards (
   reviewer_id     UUID REFERENCES users(id),   -- назначенный проверяющий
   created_by      UUID NOT NULL REFERENCES users(id),
   last_changed_by UUID REFERENCES users(id),
+  review_protocol_id UUID UNIQUE REFERENCES card_review_protocols(id) ON DELETE SET NULL,
   is_locked       BOOLEAN NOT NULL DEFAULT false,
   is_archived     BOOLEAN NOT NULL DEFAULT false,
   cancel_reason   TEXT,
@@ -92,10 +95,76 @@ CREATE INDEX idx_cards_priority ON cards(priority);
 CREATE INDEX idx_cards_year_month ON cards(year, month);
 CREATE INDEX idx_cards_is_archived ON cards(is_archived);
 CREATE INDEX idx_cards_is_locked ON cards(is_locked);
+CREATE INDEX idx_cards_review_protocol_id ON cards(review_protocol_id);
 -- Полнотекстовый поиск
 CREATE INDEX idx_cards_fts ON cards USING gin(
   to_tsvector('russian', coalesce(extra_title,'') || ' ' || coalesce(description,''))
 );
+```
+
+### review_protocols (шаблоны протоколов проверки)
+```sql
+CREATE TABLE review_protocols (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        VARCHAR(255) NOT NULL,
+  description  TEXT,
+  is_archived  BOOLEAN NOT NULL DEFAULT false,
+  created_by   UUID NOT NULL REFERENCES users(id),
+  updated_by   UUID REFERENCES users(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_review_protocols_is_archived ON review_protocols(is_archived);
+CREATE INDEX idx_review_protocols_created_by ON review_protocols(created_by);
+```
+
+### review_protocol_items (пункты шаблона протокола)
+```sql
+CREATE TABLE review_protocol_items (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  protocol_id  UUID NOT NULL REFERENCES review_protocols(id) ON DELETE CASCADE,
+  sort_order   INTEGER NOT NULL,
+  text         TEXT NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_review_protocol_items_protocol_id ON review_protocol_items(protocol_id);
+CREATE INDEX idx_review_protocol_items_sort_order ON review_protocol_items(protocol_id, sort_order);
+```
+
+### card_review_protocols (снимок протокола внутри карточки)
+```sql
+CREATE TABLE card_review_protocols (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  card_id             UUID UNIQUE NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  source_protocol_id  UUID REFERENCES review_protocols(id) ON DELETE SET NULL,
+  title               VARCHAR(255) NOT NULL,
+  description         TEXT,
+  attached_by         UUID NOT NULL REFERENCES users(id),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_card_review_protocols_card_id ON card_review_protocols(card_id);
+CREATE INDEX idx_card_review_protocols_source_protocol_id ON card_review_protocols(source_protocol_id);
+```
+
+### card_review_protocol_items (результат прохождения пунктов в карточке)
+```sql
+CREATE TABLE card_review_protocol_items (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  card_protocol_id  UUID NOT NULL REFERENCES card_review_protocols(id) ON DELETE CASCADE,
+  sort_order        INTEGER NOT NULL,
+  text              TEXT NOT NULL,
+  is_checked        BOOLEAN NOT NULL DEFAULT false,
+  checked_at        TIMESTAMPTZ,
+  checked_by        UUID REFERENCES users(id),
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_card_review_protocol_items_card_protocol_id ON card_review_protocol_items(card_protocol_id);
+CREATE INDEX idx_card_review_protocol_items_sort_order ON card_review_protocol_items(card_protocol_id, sort_order);
 ```
 
 ### source_materials (исходные материалы карточки)
@@ -234,3 +303,7 @@ storage/
 - Оригинальное имя хранится в БД (file_name)
 - SHA-256 hash для проверки целостности
 - Максимальный размер файла: настраивается через ENV (по умолчанию 500MB)
+
+## Замечание по актуальности
+
+Документ описывает ключевые сущности прикладной схемы и намеренно не повторяет Prisma-файл построчно. Актуальный источник истины по типам и связям: `apps/api/prisma/schema.prisma`.
