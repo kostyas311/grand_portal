@@ -6,6 +6,7 @@ import { QueryKey, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cardsApi } from '@/lib/api';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { formatDate, getDueDateIndicator } from '@/lib/utils';
 import { displayUserName } from '@/lib/user-display';
 import { useAuthStore } from '@/lib/store/auth.store';
@@ -318,12 +319,11 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
             {needsComment && (
               <div className="mb-3">
                 <label className="label label-required">Причина возврата</label>
-                <textarea
-                  className="input resize-none"
-                  rows={3}
+                <MentionTextarea
                   placeholder="Укажите причину возврата с проверки..."
                   value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  onChange={setComment}
+                  minHeightClass="min-h-[84px]"
                 />
               </div>
             )}
@@ -331,12 +331,11 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
             {needsReason && (
               <div className="mb-3">
                 <label className="label label-required">Причина отмены</label>
-                <textarea
-                  className="input resize-none"
-                  rows={3}
+                <MentionTextarea
                   placeholder="Укажите причину отмены..."
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  onChange={setReason}
+                  minHeightClass="min-h-[84px]"
                 />
               </div>
             )}
@@ -344,12 +343,11 @@ export function KanbanBoard({ cards, queryKey }: KanbanBoardProps) {
             {!needsComment && !needsReason && (
               <div className="mb-3">
                 <label className="label">Комментарий (необязательно)</label>
-                <textarea
-                  className="input resize-none"
-                  rows={2}
+                <MentionTextarea
                   placeholder="Дополнительный комментарий..."
                   value={comment}
-                  onChange={(e) => setComment(e.target.value)}
+                  onChange={setComment}
+                  minHeightClass="min-h-[64px]"
                 />
               </div>
             )}

@@ -18,6 +18,7 @@ import { NotificationEmailSettingsModule } from './modules/notification-email-se
 import { InstructionsModule } from './modules/instructions/instructions.module';
 import { SprintsModule } from './modules/sprints/sprints.module';
 import { ComponentsModule } from './modules/components/components.module';
+import { ReviewProtocolsModule } from './modules/review-protocols/review-protocols.module';
 import { RequestTimeoutInterceptor } from './common/interceptors/request-timeout.interceptor';
 import { HealthController } from './health.controller';
 
@@ -41,6 +42,7 @@ import { HealthController } from './health.controller';
     AdminRequestsModule,
     InstructionsModule,
     ComponentsModule,
+    ReviewProtocolsModule,
     SprintsModule,
   ],
   providers: [

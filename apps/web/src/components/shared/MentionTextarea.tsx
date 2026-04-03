@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { usersApi } from '@/lib/api';
-import type { User } from '@/lib/store/auth.store';
+import { useAuthStore, type User } from '@/lib/store/auth.store';
 import {
+  findMentionMatchInContentEditable,
   getMentionSuggestions,
   textMentionsToHtml,
   textWithMentionsFromEditable,
@@ -13,9 +14,9 @@ import {
 
 type MentionState = {
   query: string;
-  range: Range;
-  textNode: Text;
+  startNode: Text;
   startOffset: number;
+  endNode: Text;
   endOffset: number;
   rect: DOMRect;
 };
@@ -39,6 +40,7 @@ export function MentionTextarea({
   const lastRenderedValueRef = useRef(value);
   const [mentionState, setMentionState] = useState<MentionState | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const { user } = useAuthStore();
 
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['mentionable-users'],
@@ -47,8 +49,12 @@ export function MentionTextarea({
   });
 
   const suggestions = useMemo(
-    () => getMentionSuggestions(users, mentionState?.query || ''),
-    [users, mentionState?.query],
+    () =>
+      getMentionSuggestions(
+        users.filter((candidate) => candidate.id !== user?.id),
+        mentionState?.query || '',
+      ),
+    [users, user?.id, mentionState?.query],
   );
 
   useEffect(() => {
@@ -86,56 +92,29 @@ export function MentionTextarea({
   };
 
   const updateMentionQuery = () => {
-    const selection = window.getSelection();
-    const range =
-      selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-
-    if (!range || !range.collapsed) {
+    if (!editorRef.current) {
       setMentionState(null);
       return;
     }
 
-    const textNode =
-      range.startContainer.nodeType === Node.TEXT_NODE
-        ? (range.startContainer as Text)
-        : null;
-
-    if (!textNode || !editorRef.current?.contains(textNode)) {
+    const mentionMatch = findMentionMatchInContentEditable(editorRef.current);
+    if (!mentionMatch) {
       setMentionState(null);
       return;
     }
-
-    if ((textNode.parentElement?.closest('.mention-token') as HTMLElement | null) != null) {
-      setMentionState(null);
-      return;
-    }
-
-    const beforeCaret = textNode.data.slice(0, range.startOffset);
-    const match = beforeCaret.match(/(^|\s)@([^\s@]*)$/);
-
-    if (!match) {
-      setMentionState(null);
-      return;
-    }
-
-    const mentionText = match[0].startsWith('@') ? match[0] : match[0].slice(1);
-    const startOffset = range.startOffset - mentionText.length;
-    const rect = range.getBoundingClientRect();
-
-    const nextQuery = match[2] || '';
 
     setMentionState((current) => {
-      if (current?.query !== nextQuery) {
+      if (current?.query !== mentionMatch.query) {
         setActiveIndex(0);
       }
 
       return {
-        query: nextQuery,
-        range: range.cloneRange(),
-        textNode,
-        startOffset,
-        endOffset: range.startOffset,
-        rect,
+        query: mentionMatch.query,
+        startNode: mentionMatch.startNode,
+        startOffset: mentionMatch.startOffset,
+        endNode: mentionMatch.endNode,
+        endOffset: mentionMatch.endOffset,
+        rect: mentionMatch.rect,
       };
     });
   };
@@ -158,30 +137,22 @@ export function MentionTextarea({
       return;
     }
 
-    const { textNode, startOffset, endOffset } = mentionState;
-    const parent = textNode.parentNode;
-    if (!parent) {
-      return;
-    }
+    const { startNode, startOffset, endNode, endOffset } = mentionState;
+    const range = document.createRange();
+    range.setStart(startNode, startOffset);
+    range.setEnd(endNode, endOffset);
 
-    const before = textNode.data.slice(0, startOffset);
-    const after = textNode.data.slice(endOffset);
-
-    const beforeNode = before ? document.createTextNode(before) : null;
     const mentionNode = document.createElement('span');
     mentionNode.className = 'mention-token';
     mentionNode.setAttribute('contenteditable', 'false');
     mentionNode.dataset.mentionId = user.id;
     mentionNode.dataset.mentionName = user.fullName;
     mentionNode.textContent = `@${user.fullName}`;
-    const trailingText = document.createTextNode(` ${after}`);
+    const trailingText = document.createTextNode(' ');
 
-    if (beforeNode) {
-      parent.insertBefore(beforeNode, textNode);
-    }
-    parent.insertBefore(mentionNode, textNode);
-    parent.insertBefore(trailingText, textNode);
-    parent.removeChild(textNode);
+    range.deleteContents();
+    range.insertNode(trailingText);
+    range.insertNode(mentionNode);
 
     placeCaretAfter(trailingText, 1);
     syncValue();

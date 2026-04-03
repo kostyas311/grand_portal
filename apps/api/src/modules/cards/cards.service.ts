@@ -20,10 +20,10 @@ import { AssignDto } from './dto/assign.dto';
 import { CardsFilterDto } from './dto/cards-filter.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SprintsService } from '../sprints/sprints.service';
+import { ReviewProtocolsService } from '../review-protocols/review-protocols.service';
 import {
   compactMentionPreview,
   extractMentionedUserIdsFromText,
-  getNewMentionedUserIds,
 } from '../../common/utils/mentions.util';
 
 const CARD_INCLUDE = {
@@ -41,6 +41,23 @@ const CARD_INCLUDE = {
   _count: {
     select: { sourceMaterials: true, resultVersions: true, comments: true },
   },
+  reviewProtocol: {
+    include: {
+      sourceProtocol: {
+        select: {
+          id: true,
+          publicId: true,
+          title: true,
+        },
+      },
+      items: {
+        include: {
+          checkedBy: { select: { id: true, fullName: true } },
+        },
+        orderBy: { sortOrder: 'asc' as const },
+      },
+    },
+  },
 };
 
 @Injectable()
@@ -49,6 +66,7 @@ export class CardsService {
     private prisma: PrismaService,
     private notifications: NotificationsService,
     private sprintsService: SprintsService,
+    private reviewProtocolsService: ReviewProtocolsService,
   ) {}
 
   async findAll(filter: CardsFilterDto, userId: string, userRole: UserRole) {
@@ -189,6 +207,7 @@ export class CardsService {
     const where: any = {
       status: CardStatus.DONE,
       isArchived: false,
+      parentId: null,
     };
 
     if (filter.dataSourceId) where.dataSourceId = filter.dataSourceId;
@@ -342,6 +361,8 @@ export class CardsService {
       }
     }
 
+    await this.reviewProtocolsService.copyFromDataSourceToCard(card.id, card.dataSourceId, userId);
+
     await this.logHistory(card.id, userId, HistoryAction.CREATED, null, {
       status: CardStatus.NEW,
       publicId,
@@ -417,11 +438,7 @@ export class CardsService {
     if (dto.description !== undefined) {
       await this.notifyMentionedUsersForCard(
         updated,
-        getNewMentionedUserIds(
-          extractMentionedUserIdsFromText(card.description),
-          extractMentionedUserIdsFromText(dto.description),
-          [userId],
-        ),
+        extractMentionedUserIdsFromText(dto.description),
         userId,
         'в описании карточки',
         dto.description,
@@ -434,6 +451,7 @@ export class CardsService {
   async changeStatus(id: string, dto: ChangeStatusDto, userId: string, userRole?: UserRole) {
     const card = await this.findById(id);
     const isForce = dto.force === true && userRole === UserRole.ADMIN;
+    let protocolReturnComment: string | undefined;
 
     if (!isForce) {
       this.assertNotLocked(card);
@@ -450,7 +468,7 @@ export class CardsService {
     // Validate transition (skip for admin force)
     if (!isForce) {
       this.assertCanChangeStatus(card, userId, userRole, newStatus);
-      await this.validateStatusTransition(oldStatus, newStatus, card, dto);
+      await this.validateStatusTransition(oldStatus, newStatus, card, dto, userRole);
     }
 
     const updateData: any = {
@@ -484,6 +502,14 @@ export class CardsService {
       include: CARD_INCLUDE,
     });
 
+    if (newStatus === CardStatus.REVIEW) {
+      await this.reviewProtocolsService.resetCardProtocolChecks(card.id);
+    } else if (newStatus === CardStatus.IN_PROGRESS && oldStatus === CardStatus.REVIEW) {
+      protocolReturnComment = this.buildProtocolReturnComment(card.reviewProtocol);
+    }
+
+    const effectiveComment = this.mergeStatusComments(dto.comment, protocolReturnComment);
+
     const action =
       newStatus === CardStatus.DONE
         ? HistoryAction.COMPLETED
@@ -493,18 +519,18 @@ export class CardsService {
         ? HistoryAction.RETURNED_WITH_ERRORS
         : HistoryAction.STATUS_CHANGED;
 
-    await this.logHistory(card.id, userId, action, { status: oldStatus }, { status: newStatus, comment: dto.reason || dto.comment });
+    await this.logHistory(card.id, userId, action, { status: oldStatus }, { status: newStatus, comment: dto.reason || effectiveComment });
 
     await this.notifications.createForCardEvent(card.id, {
       type: newStatus === CardStatus.REVIEW ? NotificationType.REVIEW_REQUEST : NotificationType.STATUS_CHANGED,
       title: this.getStatusNotificationTitle(newStatus),
-      message: this.getStatusNotificationMessage(card, newStatus, dto.comment || dto.reason),
+      message: this.getStatusNotificationMessage(card, newStatus, effectiveComment || dto.reason),
       actorId: userId,
       extraUserIds: newStatus === CardStatus.REVIEW ? [card.reviewerId] : [],
       excludeUserIds: [userId],
     });
 
-    if (dto.comment?.trim()) {
+    if (effectiveComment?.trim()) {
       const currentVersion = await this.prisma.resultVersion.findFirst({
         where: { cardId: card.id, isCurrent: true },
       });
@@ -514,14 +540,14 @@ export class CardsService {
           cardId: card.id,
           authorId: userId,
           resultVersionId: currentVersion?.id,
-          text: dto.comment.trim(),
+          text: effectiveComment.trim(),
         },
       });
     }
 
     const statusMentionIds = Array.from(
       new Set([
-        ...extractMentionedUserIdsFromText(dto.comment),
+        ...extractMentionedUserIdsFromText(effectiveComment),
         ...extractMentionedUserIdsFromText(dto.reason),
       ]),
     );
@@ -531,7 +557,7 @@ export class CardsService {
       statusMentionIds,
       userId,
       'в комментарии к изменению статуса',
-      dto.comment || dto.reason || undefined,
+      effectiveComment || dto.reason || undefined,
     );
 
     return updated;
@@ -724,6 +750,7 @@ export class CardsService {
     to: CardStatus,
     card: any,
     dto: ChangeStatusDto,
+    userRole?: UserRole,
   ) {
     const allowed: Record<CardStatus, CardStatus[]> = {
       [CardStatus.NEW]: [CardStatus.IN_PROGRESS, CardStatus.CANCELLED],
@@ -781,11 +808,16 @@ export class CardsService {
     }
 
     if (to === CardStatus.IN_PROGRESS && from === CardStatus.REVIEW) {
-      if (!dto.comment) {
+      const hasUncheckedProtocolItems = (card.reviewProtocol?.items || []).some((item: any) => !item.isChecked);
+      if (!dto.comment && !hasUncheckedProtocolItems) {
         throw new BadRequestException(
           'При возврате с проверки необходимо указать причину/комментарий',
         );
       }
+    }
+
+    if (to === CardStatus.DONE && userRole !== UserRole.ADMIN) {
+      await this.reviewProtocolsService.assertCardProtocolCompleted(card.id);
     }
 
     if (to === CardStatus.CANCELLED && !dto.reason) {
@@ -902,6 +934,29 @@ export class CardsService {
     }
   }
 
+  private buildProtocolReturnComment(reviewProtocol?: {
+    items?: Array<{ text?: string | null; isChecked?: boolean }>;
+  } | null) {
+    const uncheckedItems = (reviewProtocol?.items || []).filter((item: any) => !item.isChecked && item.text?.trim());
+
+    if (!uncheckedItems.length) {
+      return undefined;
+    }
+
+    return `Не пройдены пункты протокола:\n${uncheckedItems.map((item: any) => `- ${item.text.trim()}`).join('\n')}`;
+  }
+
+  private mergeStatusComments(userComment?: string, autoComment?: string) {
+    const trimmedUserComment = userComment?.trim();
+    const trimmedAutoComment = autoComment?.trim();
+
+    if (trimmedUserComment && trimmedAutoComment) {
+      return `${trimmedUserComment}\n\n${trimmedAutoComment}`;
+    }
+
+    return trimmedUserComment || trimmedAutoComment || undefined;
+  }
+
   private async notifyMentionedUsersForCard(
     card: any,
     mentionedUserIds: string[],
@@ -920,7 +975,6 @@ export class CardsService {
       actorId,
       includeWatchers: false,
       extraUserIds: mentionedUserIds,
-      excludeUserIds: [actorId],
     });
   }
 

@@ -305,7 +305,7 @@ export class ComponentsService {
 
   async detachFromCard(cardId: string, componentId: string, userId: string, userRole?: UserRole) {
     const card = await this.getCard(cardId);
-    this.assertCanManageCardComponents(card, userId, userRole);
+    this.assertCanDetachCardComponent(card, userId, userRole);
 
     const link = await this.prisma.cardComponent.findFirst({
       where: {
@@ -460,6 +460,16 @@ export class ComponentsService {
     if (!canManage) {
       throw new ForbiddenException('Недостаточно прав для изменения компонентов карточки');
     }
+  }
+
+  private assertCanDetachCardComponent(card: any, userId: string, userRole?: UserRole) {
+    if (card.status === 'REVIEW' && userRole !== UserRole.ADMIN && card.reviewerId !== userId) {
+      throw new ForbiddenException(
+        'На этапе проверки убрать компонент из карточки может только проверяющий или администратор',
+      );
+    }
+
+    this.assertCanManageCardComponents(card, userId, userRole);
   }
 
   private assertCanManageDataSourceComponents(userRole?: UserRole) {

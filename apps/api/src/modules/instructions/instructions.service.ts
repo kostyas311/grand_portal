@@ -15,7 +15,6 @@ import { UpdateInstructionDto } from './dto/update-instruction.dto';
 import {
   compactMentionPreview,
   extractMentionedUserIdsFromHtml,
-  getNewMentionedUserIds,
 } from '../../common/utils/mentions.util';
 
 const INSTRUCTION_INCLUDE = {
@@ -228,11 +227,7 @@ export class InstructionsService {
 
     await this.notifyMentionedUsersForInstruction(
       updated,
-      getNewMentionedUserIds(
-        extractMentionedUserIdsFromHtml(instruction.contentHtml),
-        extractMentionedUserIdsFromHtml(nextContentHtml),
-        [userId],
-      ),
+      extractMentionedUserIdsFromHtml(nextContentHtml),
       userId,
       'в тексте инструкции',
       nextContentHtml,
@@ -441,7 +436,7 @@ export class InstructionsService {
     userRole?: UserRole,
   ) {
     const card = await this.getCard(cardId);
-    this.assertCanManageCardInstructions(card, userId, userRole);
+    this.assertCanDetachCardInstruction(card, userId, userRole);
 
     const link = await this.prisma.cardInstruction.findFirst({
       where: {
@@ -589,6 +584,16 @@ export class InstructionsService {
     }
   }
 
+  private assertCanDetachCardInstruction(card: any, userId: string, userRole?: UserRole) {
+    if (card.status === CardStatus.REVIEW && userRole !== UserRole.ADMIN && card.reviewerId !== userId) {
+      throw new ForbiddenException(
+        'На этапе проверки убрать инструкцию из карточки может только проверяющий или администратор',
+      );
+    }
+
+    this.assertCanManageCardInstructions(card, userId, userRole);
+  }
+
   private buildVisibilityClause(userId: string, userRole?: UserRole, explicitStatus?: InstructionStatus) {
     if (userRole === UserRole.ADMIN) {
       return {};
@@ -644,7 +649,6 @@ export class InstructionsService {
       message: `В инструкции «${instruction.title}» вас упомянули ${contextLabel}.${compactMentionPreview(html, 160) ? ` Текст: ${compactMentionPreview(html, 160)}` : ''}`,
       actorId,
       recipientUserIds: mentionedUserIds,
-      excludeUserIds: [actorId],
     });
   }
 }

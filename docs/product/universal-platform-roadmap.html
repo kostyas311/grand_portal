@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Roadmap Универсальной Платформы</title>
+    <style>
+      :root {
+        --bg: #eef4fb;
+        --panel: #ffffff;
+        --panel-soft: #f6f9fd;
+        --text: #18324a;
+        --muted: #62758a;
+        --line: #d9e4f0;
+        --accent: #1f63d8;
+        --accent-soft: rgba(31, 99, 216, 0.12);
+        --success: #16764a;
+        --warning: #b66b00;
+        --shadow: 0 18px 45px rgba(24, 50, 74, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background:
+          radial-gradient(circle at top right, rgba(31, 99, 216, 0.08), transparent 24%),
+          linear-gradient(180deg, #f6f9fe 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+
+      .page {
+        width: min(1180px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 32px 0 64px;
+      }
+
+      .hero {
+        background: linear-gradient(135deg, #11325f 0%, #1f63d8 100%);
+        color: #fff;
+        border-radius: 32px;
+        padding: 40px;
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 18px 0 14px;
+        font-size: clamp(34px, 5vw, 56px);
+        line-height: 1.05;
+      }
+
+      .hero p {
+        margin: 0;
+        max-width: 900px;
+        font-size: 18px;
+        line-height: 1.7;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin: 24px 0 0;
+      }
+
+      .summary-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 24px;
+        padding: 18px 20px;
+      }
+
+      .summary-card strong {
+        display: block;
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+
+      section {
+        margin-top: 28px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+      }
+
+      h2 {
+        margin: 0 0 16px;
+        font-size: 28px;
+      }
+
+      h3 {
+        margin: 0 0 14px;
+        font-size: 20px;
+      }
+
+      p,
+      li {
+        font-size: 16px;
+        line-height: 1.7;
+        color: var(--text);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 16px;
+      }
+
+      .tile {
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 18px 20px;
+      }
+
+      .tile .tag,
+      .phase-tag {
+        display: inline-block;
+        margin-bottom: 12px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .phase {
+        padding: 24px;
+        border-radius: 26px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #ffffff 0%, #f9fbfe 100%);
+      }
+
+      .phase + .phase {
+        margin-top: 18px;
+      }
+
+      .phase-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        margin-bottom: 14px;
+      }
+
+      .phase-meta {
+        min-width: 240px;
+        padding: 14px 16px;
+        border-radius: 20px;
+        background: var(--panel-soft);
+        border: 1px solid var(--line);
+      }
+
+      .phase-meta strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .task-columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .task-box {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 16px 18px;
+      }
+
+      .task-box ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 14px;
+      }
+
+      .timeline-row {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 16px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--panel-soft);
+      }
+
+      .timeline-row strong {
+        color: var(--accent);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+      }
+
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      th {
+        background: #f3f7fc;
+        color: var(--text);
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .callout {
+        margin-top: 18px;
+        padding: 18px 20px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, #fffdf8 0%, #fff7e8 100%);
+      }
+
+      .callout strong {
+        color: var(--warning);
+      }
+
+      .success {
+        background: linear-gradient(180deg, #f7fdf9 0%, #edf9f1 100%);
+      }
+
+      .success strong {
+        color: var(--success);
+      }
+
+      .footer-note {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      @media (max-width: 860px) {
+        .phase-header,
+        .timeline-row {
+          grid-template-columns: 1fr;
+        }
+
+        .phase-meta {
+          min-width: 0;
+        }
+
+        .hero {
+          padding: 28px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="eyebrow">Roadmap трансформации продукта</div>
+        <h1>От специализированного портала к универсальной B2B-платформе</h1>
+        <p>
+          Цель: превратить текущий портал в универсальное решение класса
+          <strong>Work Management + Knowledge Base + Team Communication</strong>,
+          которое можно адаптировать для любой компании, разных организационных структур,
+          произвольных карточек, шаблонов процессов, пространств знаний и корпоративного общения.
+        </p>
+
+        <div class="summary">
+          <div class="summary-card">
+            <strong>3</strong>
+            продуктовых столпа: Tasks, Knowledge, Chat
+          </div>
+          <div class="summary-card">
+            <strong>8</strong>
+            этапов эволюции платформы
+          </div>
+          <div class="summary-card">
+            <strong>Platform-first</strong>
+            каждая новая доработка становится универсальным строительным блоком
+          </div>
+        </div>
+      </header>
+
+      <section>
+        <h2>Продуктовое видение</h2>
+        <div class="grid">
+          <div class="tile">
+            <div class="tag">Pillar 1</div>
+            <h3>Work Management</h3>
+            <p class="muted">
+              Проекты, задачи, workflow, шаблоны карточек, доски, исполнители, проверки,
+              отчёты, спринты, автоматизация процессов.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="tag">Pillar 2</div>
+            <h3>Knowledge Base</h3>
+            <p class="muted">
+              Пространства знаний, документы, статьи, инструкции, связи с задачами и проектами,
+              публикация, версии, поиск и шаблоны страниц.
+            </p>
+          </div>
+          <div class="tile">
+            <div class="tag">Pillar 3</div>
+            <h3>Team Communication</h3>
+            <p class="muted">
+              Команды, каналы, личные сообщения, системные сообщения от задач,
+              уведомления, проектные и командные чаты, realtime-взаимодействие.
+            </p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <strong>Главный принцип:</strong> мы больше не развиваем портал под одну компанию.
+          Мы строим платформу, в которой конкретная компания настраивает свой брендинг,
+          роли, процессы, карточки, знания и способы общения.
+        </div>
+      </section>
+
+      <section>
+        <h2>Целевая архитектура</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Слой</th>
+              <th>Назначение</th>
+              <th>Ключевые сущности</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Platform Core</strong></td>
+              <td>Универсальное ядро продукта, одинаковое для всех компаний</td>
+              <td>Users, Organizations, Projects, Teams, Cards, Knowledge, Chat, Notifications</td>
+            </tr>
+            <tr>
+              <td><strong>Configuration Layer</strong></td>
+              <td>Настройки конкретной компании и её процессов</td>
+              <td>Branding, workflow templates, card templates, permissions, enabled modules</td>
+            </tr>
+            <tr>
+              <td><strong>Tenant / Company Setup</strong></td>
+              <td>Внедрение платформы в конкретную организацию</td>
+              <td>Organization profile, company logo, support contacts, default roles, initial spaces</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Полный Roadmap</h2>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 0</div>
+              <h3>Strategy & Product Reset</h3>
+              <p class="muted">
+                Зафиксировать новую траекторию продукта и перестать мыслить текущим решением
+                как “порталом одной команды”.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Сформировать основу для platform-first развития и зафиксировать продуктовую модель.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Задачи по продукту</h3>
+              <ul>
+                <li>Выбрать рабочее нейтральное имя продукта.</li>
+                <li>Определить продуктовые столпы: Tasks, Knowledge, Chat.</li>
+                <li>Зафиксировать vision и boundary продукта.</li>
+                <li>Определить базовый ICP: internal teams / mid-size companies / ops-driven organizations.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Задачи по архитектуре</h3>
+              <ul>
+                <li>Подготовить ADR: platform core vs company customization.</li>
+                <li>Зафиксировать основные bounded contexts.</li>
+                <li>Определить, какие части текущего решения считаются legacy-company-specific.</li>
+                <li>Составить карту зависимостей между карточками, инструкциями, уведомлениями и брендингом.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Результат этапа</h3>
+              <ul>
+                <li>Одобренная продуктовая стратегия.</li>
+                <li>Список company-specific артефактов на вынос.</li>
+                <li>Базовый мастер-roadmap для реализации.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 1</div>
+              <h3>Product Extraction & Neutral Branding</h3>
+              <p class="muted">
+                Отделить универсальное ядро от текущего бренда, логотипа, help-текстов
+                и специфики одной компании.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Получить нейтральный продукт, готовый к развитию как универсальная система.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Backend</h3>
+              <ul>
+                <li>Добавить сущность `OrganizationSettings` или `TenantSettings`.</li>
+                <li>Вынести product name, support email, logo URL, brand colors в конфигурацию.</li>
+                <li>Добавить API для чтения и редактирования branding/config.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Убрать жёсткие названия и логотип компании из layout и shared components.</li>
+                <li>Перевести `BrandBlock`, help page, footer, копирайты и onboarding-тексты на конфигурируемые данные.</li>
+                <li>Сделать fallback-branding для “чистой” инсталляции.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Документация</h3>
+              <ul>
+                <li>Обновить README и help в нейтральной продуктовой терминологии.</li>
+                <li>Разделить company-specific docs и platform docs.</li>
+                <li>Подготовить базовое positioning описание нового продукта.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 2</div>
+              <h3>Projects, Teams, Membership</h3>
+              <p class="muted">
+                Ввести проектный контур как основу всей дальнейшей платформы.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Уйти от глобальных карточек и спринтов к project-scoped модели.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Модель данных</h3>
+              <ul>
+                <li>Создать `Project`, `ProjectMember`, `Team`, `TeamMember`, `ProjectTeam`.</li>
+                <li>Добавить `projectId` в `Card` и `Sprint`.</li>
+                <li>Подготовить миграцию legacy-данных в default project.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend</h3>
+              <ul>
+                <li>Создать модули `projects` и `teams`.</li>
+                <li>Добавить CRUD проектов и команд.</li>
+                <li>Ввести membership-check на доступ к проекту и команде.</li>
+                <li>Обновить карточки, спринты, отчёты и уведомления под project context.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Добавить экраны администрирования проектов и команд.</li>
+                <li>Добавить project switcher и project context в навигацию.</li>
+                <li>Переделать все списки карточек и спринтов на работу в рамках проекта.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 3</div>
+              <h3>Workflow Templates & Card Templates</h3>
+              <p class="muted">
+                Сделать процессы и сами карточки зависящими от проекта,
+                а не жёстко зашитыми в систему.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Разрешить разным проектам жить по разным процессам и с разной моделью карточки.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Workflow</h3>
+              <ul>
+                <li>Добавить `workflowTemplate` в проект.</li>
+                <li>Подготовить шаблоны: `STANDARD`, `SIMPLE`, `REVIEW_BASED`, `APPROVAL_BASED`.</li>
+                <li>Перенести валидаторы переходов из жёсткого кода в проектно-зависимый слой.</li>
+                <li>Сделать kanban-колонки динамическими по шаблону проекта.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Card Templates</h3>
+              <ul>
+                <li>Добавить `cardTemplate` и `projectCardConfig`.</li>
+                <li>Определить флаги: нужен ли источник данных, результат, проверяющий, спринт, due date, period.</li>
+                <li>Скрывать/показывать блоки карточки по config проекта.</li>
+                <li>Сделать backend-валидацию полей зависимой от проекта.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Расширение на будущее</h3>
+              <ul>
+                <li>Подготовить архитектуру для custom fields без немедленного low-code конструктора.</li>
+                <li>Определить, какие поля останутся в core card, а какие станут optional/configurable.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 4</div>
+              <h3>Universal Work Management</h3>
+              <p class="muted">
+                Превратить текущую карточечную механику в универсальный task/work item engine.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Построить ядро уровня Jira-lite / work management platform.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Задачи</h3>
+              <ul>
+                <li>Обобщить термин “карточка” до `Work Item` или сохранить `Card` как универсальный task object.</li>
+                <li>Добавить типы задач и шаблоны создания.</li>
+                <li>Развить иерархию parent/child, зависимости и связи между задачами.</li>
+                <li>Добавить automation hooks и проектные правила.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Планирование</h3>
+              <ul>
+                <li>Оставить спринты как один из режимов планирования.</li>
+                <li>Добавить backlog view и project board view.</li>
+                <li>Подготовить модель milestone / release planning на будущее.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Отчётность</h3>
+              <ul>
+                <li>Сделать отчёты project-aware и workflow-aware.</li>
+                <li>Отвязать метрики от фиксированных статусов.</li>
+                <li>Подготовить reusable analytics layer.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 5</div>
+              <h3>Knowledge Platform</h3>
+              <p class="muted">
+                Эволюционировать текущие инструкции в spaces/articles/docs-слой уровня Confluence-lite.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Сделать управляемую корпоративную базу знаний, связанную с проектами и задачами.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Domain</h3>
+              <ul>
+                <li>Ввести `KnowledgeSpace` или `Space`.</li>
+                <li>Расширить `Instruction` до универсальной `Article / Document` модели.</li>
+                <li>Поддержать публикацию, архивирование, версии и ownership.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Связи</h3>
+              <ul>
+                <li>Связать знания с проектами.</li>
+                <li>Связать знания с задачами.</li>
+                <li>Связать знания с командами и шаблонами процессов.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>UX</h3>
+              <ul>
+                <li>Добавить пространства знаний и навигацию по ним.</li>
+                <li>Добавить поиск, шаблоны страниц и печатные/экспортные режимы.</li>
+                <li>Подготовить редактор к более общему сценарию docs platform.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 6</div>
+              <h3>Team Communication Platform</h3>
+              <p class="muted">
+                Добавить корпоративное общение как нативный модуль платформы.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Построить командные каналы и личные сообщения, тесно связанные с проектами и задачами.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Модель данных</h3>
+              <ul>
+                <li>Добавить `Channel`, `ChannelMember`, `DirectChat`, `Message`, `MessageAttachment`, `MessageReadState`.</li>
+                <li>Подготовить индексы и пагинацию по истории сообщений.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend</h3>
+              <ul>
+                <li>Создать chat module.</li>
+                <li>Реализовать API каналов, direct chats и сообщений.</li>
+                <li>Добавить realtime слой через WebSocket.</li>
+                <li>Интегрировать system events из задач в чат.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Добавить раздел чатов.</li>
+                <li>Сделать каналы команд, ЛС, проектные каналы.</li>
+                <li>Добавить unread/read, вложения и быстрые переходы на задачи и знания.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 7</div>
+              <h3>Permissions 2.0 & Organization Setup</h3>
+              <p class="muted">
+                Сделать систему адаптируемой под разные организационные структуры и модели доступа.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Уйти от простой ролевой модели к multi-level permission system.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Roles & Access</h3>
+              <ul>
+                <li>Ввести system roles, organization roles, project roles, space roles, channel roles.</li>
+                <li>Сделать policy-based checks вместо only-role checks там, где нужно.</li>
+                <li>Разделить admin capabilities по уровням доступа.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Tenant Setup</h3>
+              <ul>
+                <li>Сделать onboarding новой организации.</li>
+                <li>Добавить setup wizard для первой настройки.</li>
+                <li>Подготовить default templates и initial content.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Security & Audit</h3>
+              <ul>
+                <li>Расширить аудит действий администратора.</li>
+                <li>Добавить мониторинг критичных действий.</li>
+                <li>Подготовить экспорт настроек и backup-critical configs.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Этап 8</div>
+              <h3>Productization & Delivery</h3>
+              <p class="muted">
+                Довести систему до состояния внедряемого продукта, а не просто внутреннего решения.
+              </p>
+            </div>
+            <div class="phase-meta">
+              <strong>Цель этапа</strong>
+              Сделать платформу внедряемой, обслуживаемой и масштабируемой.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Deployment</h3>
+              <ul>
+                <li>Подготовить production deployment presets.</li>
+                <li>Сделать environment guides для self-hosted внедрения.</li>
+                <li>Подготовить desktop client как официальный companion app.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Observability</h3>
+              <ul>
+                <li>Health endpoints, metrics, alerting hooks.</li>
+                <li>Tracing тяжёлых workflow и chat paths.</li>
+                <li>Runbooks по восстановлению и обновлению.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Product Docs</h3>
+              <ul>
+                <li>Admin guide, integrator guide, user guide.</li>
+                <li>Template packs для разных типов компаний.</li>
+                <li>Roadmap публичных product editions.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section>
+        <h2>Рекомендуемая последовательность реализации</h2>
+        <div class="timeline">
+          <div class="timeline-row">
+            <strong>Wave 1</strong>
+            <div>
+              Product reset, нейтральный брендинг, organization config, очистка company-specific логики.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 2</strong>
+            <div>
+              Projects, Teams, Membership, project-scoped cards and sprints.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 3</strong>
+            <div>
+              Workflow templates, card templates, project card config, dynamic validation and boards.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 4</strong>
+            <div>
+              Generalized work management layer, backlog, richer planning and reports.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 5</strong>
+            <div>
+              Knowledge spaces and universal docs platform.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 6</strong>
+            <div>
+              Chat platform, realtime and communication-driven workflows.
+            </div>
+          </div>
+          <div class="timeline-row">
+            <strong>Wave 7</strong>
+            <div>
+              Permissions 2.0, onboarding, productization, deployment maturity.
+            </div>
+          </div>
+        </div>
+
+        <div class="callout success">
+          <strong>Практический совет:</strong> работать строго этапами и не смешивать
+          в одном релизе одновременно проекты, кастомные workflow, dynamic card schema,
+          чат и knowledge spaces. Сначала foundation, потом configurable work, затем knowledge и chat.
+        </div>
+      </section>
+
+      <section>
+        <h2>Детальный Backlog На Разработку</h2>
+        <p class="muted">
+          Ниже приведён расширенный backlog, который опирается на roadmap выше и превращает его
+          в поэтапный список конкретных задач для разработки, архитектуры, UI, backend и эксплуатации.
+        </p>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog A</div>
+              <h3>Этап 0. Product Strategy & Platform Reset</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Согласованная продуктовая стратегия и новая platform-first модель развития.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Product & Positioning</h3>
+              <ul>
+                <li>Выбрать рабочее нейтральное имя продукта.</li>
+                <li>Определить краткое продуктовое позиционирование.</li>
+                <li>Определить 3 базовых pillar-направления: Work, Knowledge, Chat.</li>
+                <li>Определить, что относится к platform core, а что к company customization.</li>
+                <li>Сформировать новый словарь терминов: project, team, work item, space, channel, organization.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Architecture & Scope</h3>
+              <ul>
+                <li>Подготовить ADR по переходу к универсальной платформе.</li>
+                <li>Сформировать карту bounded contexts.</li>
+                <li>Составить inventory company-specific логики в текущем проекте.</li>
+                <li>Определить MVP универсальной платформы и first commercial edition.</li>
+                <li>Определить список legacy-предположений, которые нужно устранить в первую очередь.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog B</div>
+              <h3>Этап 1. Neutral Branding & Organization Config</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Продукт перестаёт быть зашитым под одну компанию и начинает жить как нейтральная система.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Backend</h3>
+              <ul>
+                <li>Добавить модель `OrganizationSettings`.</li>
+                <li>Добавить поля: `organizationName`, `productName`, `logoUrl`, `supportEmail`, `copyrightText`.</li>
+                <li>Добавить хранение brand colors и feature flags.</li>
+                <li>Добавить admin API для чтения и обновления organization settings.</li>
+                <li>Подготовить seed default organization config.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Переделать `BrandBlock` на работу от настроек организации.</li>
+                <li>Убрать жёсткий логотип и product name из layout и login.</li>
+                <li>Переделать footer/support links на конфиг.</li>
+                <li>Переделать help page на нейтральное продуктовое описание.</li>
+                <li>Добавить fallback-branding для пустой конфигурации.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Контент и документация</h3>
+              <ul>
+                <li>Переименовать company-specific тексты в UI.</li>
+                <li>Очистить README от бренд-специфики текущей компании.</li>
+                <li>Подготовить product description для универсальной версии.</li>
+                <li>Разделить demo data и tenant-specific data.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog C</div>
+              <h3>Этап 2. Projects & Teams Foundation</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Карточки и работа перестают быть глобальными и начинают жить внутри проектов и команд.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Prisma / Data Model</h3>
+              <ul>
+                <li>Создать `Project`.</li>
+                <li>Создать `ProjectMember`.</li>
+                <li>Создать `Team`.</li>
+                <li>Создать `TeamMember`.</li>
+                <li>Создать `ProjectTeam`.</li>
+                <li>Добавить `projectId` в `Card`.</li>
+                <li>Добавить `projectId` в `Sprint`.</li>
+                <li>Подготовить миграцию existing cards/sprints в default project.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend Modules</h3>
+              <ul>
+                <li>Создать модуль `projects`.</li>
+                <li>Создать модуль `teams`.</li>
+                <li>Реализовать CRUD проектов.</li>
+                <li>Реализовать CRUD команд.</li>
+                <li>Реализовать управление участниками проекта.</li>
+                <li>Реализовать управление участниками команды.</li>
+                <li>Реализовать привязку команды к проекту.</li>
+                <li>Добавить membership-based access checks.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend & Navigation</h3>
+              <ul>
+                <li>Добавить страницы администрирования проектов.</li>
+                <li>Добавить страницы администрирования команд.</li>
+                <li>Сделать project switcher.</li>
+                <li>Добавить project context в sidebar/topbar.</li>
+                <li>Переделать карточки и спринты под project-scoped UI.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog D</div>
+              <h3>Этап 3. Workflow Templates</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Разные проекты могут жить по разным процессам, а не по одному глобальному workflow.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Domain</h3>
+              <ul>
+                <li>Добавить `workflowTemplate` в проект.</li>
+                <li>Определить шаблоны: `STANDARD`, `SIMPLE`, `REVIEW_BASED`, `APPROVAL_BASED`.</li>
+                <li>Определить системный mapping статусов для каждого шаблона.</li>
+                <li>Определить переходы и guard-conditions по каждому шаблону.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend</h3>
+              <ul>
+                <li>Вынести status validation в workflow service / rules layer.</li>
+                <li>Сделать project-aware transition validator.</li>
+                <li>Сделать project-aware notification titles/messages по этапам workflow.</li>
+                <li>Отвязать отчёты и статистику от единственного жёсткого процесса.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Сделать канбан на базе workflow template проекта.</li>
+                <li>Сделать динамические доступные действия смены статуса.</li>
+                <li>Переделать бейджи/подписи статусов под конфигурацию проекта.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog E</div>
+              <h3>Этап 4. Card Templates & Project Card Config</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Разные проекты могут использовать разные модели карточек, обязательные поля и блоки.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Модель конфигурации карточки</h3>
+              <ul>
+                <li>Добавить `cardTemplate` в проект.</li>
+                <li>Создать `ProjectCardConfig`.</li>
+                <li>Добавить флаги: `requiresDataSource`, `requiresSourceMaterials`, `requiresResult`, `requiresReviewer`, `requiresSprint`, `requiresDueDate`, `requiresPeriod`.</li>
+                <li>Добавить флаги: `supportsInstructions`, `supportsComponents`, `allowsChildCards`.</li>
+                <li>Определить core fields и optional sections карточки.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend Logic</h3>
+              <ul>
+                <li>Сделать project-aware validation при создании карточки.</li>
+                <li>Сделать project-aware validation при обновлении карточки.</li>
+                <li>Сделать project-aware validation при смене статуса.</li>
+                <li>Ограничить выбор исполнителей/проверяющих участниками проекта.</li>
+                <li>Подготовить расширение для custom fields в будущем.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend Form Layer</h3>
+              <ul>
+                <li>Сделать динамический рендер формы карточки по config проекта.</li>
+                <li>Скрывать источник данных, если проект его не использует.</li>
+                <li>Скрывать результат, если проект его не использует.</li>
+                <li>Скрывать проверяющего, если workflow не требует review.</li>
+                <li>Подготовить архитектуру под custom sections later.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog F</div>
+              <h3>Этап 5. Universal Work Management Layer</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Появляется универсальный task/work item engine уровня Jira-lite.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Work Items</h3>
+              <ul>
+                <li>Определить, остаётся ли термин `Card` или переходим к `WorkItem`.</li>
+                <li>Добавить типы задач и task categories.</li>
+                <li>Расширить модель parent/child и dependency relations.</li>
+                <li>Добавить backlog view.</li>
+                <li>Добавить planning metadata для roadmap-level работы.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Boards & Planning</h3>
+              <ul>
+                <li>Сделать board presets по типам workflow.</li>
+                <li>Разделить board, backlog, sprint и calendar modes.</li>
+                <li>Подготовить milestone/release abstraction.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Reporting</h3>
+              <ul>
+                <li>Сделать отчёты project-aware, workflow-aware и template-aware.</li>
+                <li>Добавить проектные dashboard widgets.</li>
+                <li>Подготовить common analytics service.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog G</div>
+              <h3>Этап 6. Knowledge Platform</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Инструкции превращаются в универсальный knowledge/documentation layer уровня Confluence-lite.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Data Model</h3>
+              <ul>
+                <li>Ввести `KnowledgeSpace`.</li>
+                <li>Решить, эволюционирует ли `Instruction` в `Document/Article` или остаётся обёрткой над knowledge model.</li>
+                <li>Добавить пространство, владельцев, редакторов, publishers.</li>
+                <li>Добавить версии и publication flow.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Functional Tasks</h3>
+              <ul>
+                <li>Добавить spaces.</li>
+                <li>Добавить articles/docs hierarchy.</li>
+                <li>Добавить шаблоны документов.</li>
+                <li>Добавить поиск по знаниям.</li>
+                <li>Связать knowledge с project, task, data source, workflow template.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>UX</h3>
+              <ul>
+                <li>Переделать раздел инструкций в пространство знаний.</li>
+                <li>Добавить left nav по spaces и дереву документов.</li>
+                <li>Добавить breadcrumbs, recent docs, linked tasks.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog H</div>
+              <h3>Этап 7. Chat Platform</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Появляется нативный корпоративный чат, встроенный в проекты и команды.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Core Chat Model</h3>
+              <ul>
+                <li>Создать `Channel`, `ChannelMember`, `DirectChat`, `Message`, `MessageAttachment`, `MessageReadState`.</li>
+                <li>Определить channel types: team general, team channel, project channel, direct.</li>
+                <li>Добавить attachment storage policy для сообщений.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Backend & Realtime</h3>
+              <ul>
+                <li>Создать chat module.</li>
+                <li>Реализовать REST API сообщений и каналов.</li>
+                <li>Добавить WebSocket gateway.</li>
+                <li>Добавить unread counters и read state.</li>
+                <li>Сделать system messages от задач и документов.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Frontend</h3>
+              <ul>
+                <li>Добавить раздел чатов.</li>
+                <li>Сделать список каналов, ЛС и текущего обсуждения.</li>
+                <li>Добавить composer, file uploads, mentions later-ready.</li>
+                <li>Интегрировать переходы из задач и проектов в чат.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog I</div>
+              <h3>Этап 8. Permissions 2.0</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Платформа получает многоуровневую permission system, пригодную для разных компаний.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Role System</h3>
+              <ul>
+                <li>Добавить system roles.</li>
+                <li>Добавить organization roles.</li>
+                <li>Добавить project roles.</li>
+                <li>Добавить knowledge-space roles.</li>
+                <li>Добавить channel roles/visibility modes.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Authorization Engine</h3>
+              <ul>
+                <li>Вынести доступы в policy layer.</li>
+                <li>Сделать проверки на уровне project/team/space/channel.</li>
+                <li>Подготовить reuse для backend guards и frontend feature gating.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Admin UX</h3>
+              <ul>
+                <li>Сделать админские экраны назначения ролей.</li>
+                <li>Сделать membership and access overview.</li>
+                <li>Сделать audit trail по критичным access changes.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="phase">
+          <div class="phase-header">
+            <div>
+              <div class="phase-tag">Backlog J</div>
+              <h3>Этап 9. Productization & Delivery</h3>
+            </div>
+            <div class="phase-meta">
+              <strong>Результат</strong>
+              Система становится не просто кодовой базой, а внедряемым продуктом.
+            </div>
+          </div>
+
+          <div class="task-columns">
+            <div class="task-box">
+              <h3>Deployment</h3>
+              <ul>
+                <li>Подготовить production-ready deployment guide.</li>
+                <li>Сделать environment presets для разных режимов внедрения.</li>
+                <li>Подготовить installer/setup guide для self-hosted развертывания.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Reliability</h3>
+              <ul>
+                <li>Health endpoints, observability, structured logs, metrics.</li>
+                <li>Runbooks по резервному копированию и восстановлению.</li>
+                <li>Нагрузочные профили и performance checks для task/chat/docs paths.</li>
+              </ul>
+            </div>
+            <div class="task-box">
+              <h3>Commercial Readiness</h3>
+              <ul>
+                <li>Admin guide.</li>
+                <li>User guide.</li>
+                <li>Implementation templates per company type.</li>
+                <li>Desktop-client lifecycle и release flow.</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section>
+        <h2>Первый этап, с которого стоит начать в коде</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Блок</th>
+              <th>Что конкретно сделать</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Branding extraction</strong></td>
+              <td>Вынести название продукта, логотип, support email, копирайт, help branding в конфигурацию.</td>
+            </tr>
+            <tr>
+              <td><strong>Organization settings</strong></td>
+              <td>Добавить модель и API для настроек организации и брендинга.</td>
+            </tr>
+            <tr>
+              <td><strong>UI neutralization</strong></td>
+              <td>Убрать company-specific тексты из layout, shared components, help и README.</td>
+            </tr>
+            <tr>
+              <td><strong>Architecture ADR</strong></td>
+              <td>Зафиксировать platform-first модель: Organization -> Projects -> Teams -> Workflows -> Cards -> Knowledge -> Chat.</td>
+            </tr>
+            <tr>
+              <td><strong>Backlog prep</strong></td>
+              <td>После neutral branding сразу перейти к реализации `Project` и `Team` как следующего этапа.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p class="footer-note">
+          Этот roadmap специально сформирован как управляемый эволюционный путь: не переписывать всё с нуля,
+          а поэтапно превратить текущий работающий портал в универсальную корпоративную платформу.
+        </p>
+      </section>
+    </div>
+  </body>
+</html>

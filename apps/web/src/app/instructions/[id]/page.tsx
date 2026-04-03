@@ -8,6 +8,7 @@ import { ArrowLeft, Boxes, ChevronDown, ChevronRight, Copy, ExternalLink, FileDo
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { MentionText } from '@/components/shared/MentionText';
 import { getAccessToken } from '@/lib/api';
 import { InstructionFolderItem, instructionsApi } from '@/lib/api/instructions';
 import { componentsApi } from '@/lib/api/components';
@@ -599,7 +600,11 @@ export default function InstructionDetailPage() {
               <div className="min-w-0">
                 <h1 className="truncate text-2xl font-semibold text-slate-900">{instruction.title}</h1>
                 <p className="mt-2 truncate text-sm text-slate-500">
-                  {instruction.summary || 'Рабочая инструкция для портала «Нормбаза».'}
+                  {instruction.summary ? (
+                    <MentionText text={instruction.summary} />
+                  ) : (
+                    'Рабочая инструкция для портала «Нормбаза».'
+                  )}
                 </p>
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">

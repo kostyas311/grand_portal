@@ -8,6 +8,7 @@ dist/
 build/
 .next/
 out/
+dist-check/
 
 # Environment variables
 .env
@@ -44,6 +45,7 @@ desktop.ini
 
 # TypeScript
 *.tsbuildinfo
+apps/web/next-env.d.ts
 
 # Testing
 coverage/

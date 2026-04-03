@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { InstructionStatusBadge } from './InstructionStatusBadge';
+import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { getAccessToken } from '@/lib/api';
 import {
   InstructionAttachmentItem,
@@ -396,11 +397,11 @@ export function InstructionForm({
 
           <div>
             <label className="label">Краткое описание</label>
-            <textarea
-              className="input min-h-24 resize-none"
+            <MentionTextarea
               value={summary}
-              onChange={(event) => setSummary(event.target.value)}
+              onChange={setSummary}
               placeholder="Коротко опиши, что именно описывает эта инструкция"
+              minHeightClass="min-h-24"
             />
           </div>
         </div>

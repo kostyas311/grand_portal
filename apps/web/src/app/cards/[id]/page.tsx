@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   ArrowLeft, Edit3, Trash2, Lock, User, Calendar, AlertTriangle,
   Paperclip, FileText, MessageSquare,
-  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp, BookOpen, Unlink2, Boxes,
+  Download, Plus, Link as LinkIcon, ExternalLink, Copy, Check, X, Bell, BellOff, GitBranch, ChevronDown, ChevronUp, BookOpen, Unlink2, Boxes, ClipboardList,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -20,12 +20,14 @@ import { MentionText } from '@/components/shared/MentionText';
 import { MentionTextarea } from '@/components/shared/MentionTextarea';
 import { CardInstructionsSidebar } from '@/components/instructions/CardInstructionsSidebar';
 import { CardComponentsSidebar } from '@/components/components/CardComponentsSidebar';
+import { CardReviewProtocolSidebar } from '@/components/review-protocols/CardReviewProtocolSidebar';
 import { ComponentLocationActions } from '@/components/components/ComponentLocationActions';
 import { isLocalPath } from '@/lib/utils';
 import { displayUserName } from '@/lib/user-display';
 import { cardsApi, materialsApi, resultsApi, commentsApi, usersApi, getAccessToken } from '@/lib/api';
 import { instructionsApi } from '@/lib/api/instructions';
 import { componentsApi } from '@/lib/api/components';
+import { reviewProtocolsApi } from '@/lib/api/reviewProtocols';
 import {
   formatDate, formatRelative, formatFileSize,
 } from '@/lib/utils';
@@ -120,6 +122,9 @@ export default function CardDetailPage() {
   const [showUploadResult, setShowUploadResult] = useState(false);
   const [showInstructionsSidebar, setShowInstructionsSidebar] = useState(false);
   const [showComponentsSidebar, setShowComponentsSidebar] = useState(false);
+  const [showReviewProtocolSidebar, setShowReviewProtocolSidebar] = useState(false);
+  const [showReviewProtocolRemoveConfirm, setShowReviewProtocolRemoveConfirm] = useState(false);
+  const [showCloseCardNowConfirm, setShowCloseCardNowConfirm] = useState(false);
   const [selectedComponentRef, setSelectedComponentRef] = useState<string | null>(null);
   const [newComment, setNewComment] = useState('');
 
@@ -411,6 +416,39 @@ export default function CardDetailPage() {
     },
   });
 
+  const toggleReviewProtocolItemMutation = useMutation({
+    mutationFn: (itemId: string) => reviewProtocolsApi.toggleCardItem(id, itemId),
+    onSuccess: (_updatedItem, itemId) => {
+      const toggledItem = reviewProtocol?.items?.find((item: any) => item.id === itemId);
+      const isLastUncheckedItem =
+        !!toggledItem &&
+        !toggledItem.isChecked &&
+        (reviewProtocol?.items?.filter((item: any) => !item.isChecked).length || 0) === 1;
+
+      queryClient.invalidateQueries({ queryKey: ['card', id] });
+      toast.success('Пункт протокола обновлён');
+
+      if (isLastUncheckedItem && canReviewCard) {
+        setShowCloseCardNowConfirm(true);
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Не удалось обновить пункт протокола');
+    },
+  });
+
+  const detachReviewProtocolMutation = useMutation({
+    mutationFn: () => reviewProtocolsApi.detachFromCard(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['card', id] });
+      queryClient.invalidateQueries({ queryKey: ['card-review-protocol', id] });
+      toast.success('Протокол убран из карточки');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Не удалось убрать протокол');
+    },
+  });
+
   if (!canLoadCard || isLoading) {
     return (
       <AppLayout>
@@ -452,6 +490,14 @@ export default function CardDetailPage() {
   const showCommentsSection = (card.comments?.length ?? 0) > 0;
   const canManageInstructionLinks = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
   const canManageComponentLinks = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const canDetachInstructionLinks = !isLocked && (isAdmin || (card.status === 'REVIEW' ? isReviewer : (isCreator || isExecutor || isReviewer)));
+  const canDetachComponentLinks = !isLocked && (isAdmin || (card.status === 'REVIEW' ? isReviewer : (isCreator || isExecutor || isReviewer)));
+  const canManageReviewProtocol = !isLocked && (isAdmin || isCreator || isExecutor || isReviewer);
+  const canRemoveReviewProtocol = !isLocked && (isAdmin || isReviewer);
+  const reviewProtocol = card.reviewProtocol || null;
+  const hasReviewProtocolSection = card.status === 'REVIEW' && !!reviewProtocol;
+  const completedProtocolItems = reviewProtocol?.items?.filter((item: any) => item.isChecked).length || 0;
+  const hasUncheckedReviewProtocolItems = (reviewProtocol?.items?.some((item: any) => !item.isChecked) || false);
   const canManageAssignments = !isLocked && isAdmin;
   const canCancelCard = !isLocked && ['NEW', 'IN_PROGRESS', 'REVIEW'].includes(card.status);
   const cardUrl = typeof window !== 'undefined'
@@ -497,7 +543,7 @@ export default function CardDetailPage() {
     const needsComment = pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW';
     const needsReason = pendingStatus === 'CANCELLED';
 
-    if (!isAdmin && needsComment && !statusComment.trim()) {
+    if (!isAdmin && needsComment && !statusComment.trim() && !hasUncheckedReviewProtocolItems) {
       toast.error('Укажите причину возврата');
       return;
     }
@@ -703,9 +749,9 @@ export default function CardDetailPage() {
                       <BookOpen className="w-4 h-4" />
                     </button>
                   )}
-                  {(canManageComponentLinks || (linkedComponents?.length ?? 0) > 0) && (
-                    <button
-                      type="button"
+                    {(canManageComponentLinks || (linkedComponents?.length ?? 0) > 0) && (
+                      <button
+                        type="button"
                       className={`toolbar-button toolbar-button-secondary toolbar-button-icon ${showComponentsSidebar ? 'toolbar-button-active' : ''}`}
                       onClick={() => setShowComponentsSidebar((value) => !value)}
                       title={
@@ -715,10 +761,27 @@ export default function CardDetailPage() {
                       }
                       aria-label="Компоненты"
                     >
-                      <Boxes className="w-4 h-4" />
-                    </button>
-                  )}
-                  {canEditWorkingCard && (
+                        <Boxes className="w-4 h-4" />
+                      </button>
+                    )}
+                    {(canManageReviewProtocol || reviewProtocol) && (
+                      <button
+                        type="button"
+                        className={`toolbar-button toolbar-button-secondary toolbar-button-icon ${showReviewProtocolSidebar ? 'toolbar-button-active' : ''}`}
+                        onClick={() => setShowReviewProtocolSidebar((value) => !value)}
+                        title={
+                          showReviewProtocolSidebar
+                            ? 'Скрыть панель протокола проверки'
+                            : reviewProtocol
+                            ? 'Показать панель протокола проверки'
+                            : 'Прикрепить протокол проверки'
+                        }
+                        aria-label="Протокол проверки"
+                      >
+                        <ClipboardList className="w-4 h-4" />
+                      </button>
+                    )}
+                    {canEditWorkingCard && (
                     <Link
                       href={`/cards/${card.publicId}/edit`}
                       className="toolbar-button toolbar-button-secondary toolbar-button-icon"
@@ -885,6 +948,86 @@ export default function CardDetailPage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {hasReviewProtocolSection && (
+          <div className="section-surface">
+            <div className="section-surface-header">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-gray-500" />
+                <div>
+                  <h2 className="section-surface-title">Протокол проверки</h2>
+                  <p className="section-surface-subtitle">
+                    Отметьте все пункты, чтобы подтвердить, что результат действительно прошёл проверку.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="page-chip">
+                  {completedProtocolItems}/{reviewProtocol.items.length} выполнено
+                </span>
+                {canRemoveReviewProtocol && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowReviewProtocolRemoveConfirm(true)}
+                    disabled={detachReviewProtocolMutation.isPending}
+                  >
+                    <Unlink2 className="w-4 h-4" />
+                    Убрать
+                  </button>
+                )}
+                {canManageReviewProtocol && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowReviewProtocolSidebar(true)}
+                  >
+                    <ClipboardList className="w-4 h-4" />
+                    Управлять протоколом
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="card-body">
+              <div className="space-y-3">
+                {reviewProtocol.description && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                    <MentionText text={reviewProtocol.description} />
+                  </div>
+                )}
+
+                {reviewProtocol.items.map((item: any) => (
+                  <label
+                    key={item.id}
+                    className={`flex items-start gap-3 rounded-2xl border px-4 py-4 transition ${
+                      item.isChecked
+                        ? 'border-emerald-200 bg-emerald-50'
+                        : 'border-slate-200 bg-white'
+                    } ${canReviewCard || isAdmin ? 'cursor-pointer' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      checked={item.isChecked}
+                      disabled={!(canReviewCard || isAdmin) || toggleReviewProtocolItemMutation.isPending}
+                      onChange={() => toggleReviewProtocolItemMutation.mutate(item.id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm text-slate-800">
+                        <MentionText text={item.text} />
+                      </div>
+                      {item.isChecked && (
+                        <div className="mt-2 text-xs text-emerald-700">
+                          Отметил: {displayUserName(item.checkedBy, user?.id)}{item.checkedAt ? ` · ${formatRelative(item.checkedAt)}` : ''}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -1129,7 +1272,7 @@ export default function CardDetailPage() {
                         <ExternalLink className="w-4 h-4" />
                         Открыть
                       </Link>
-                      {canManageInstructionLinks && (
+                      {canDetachInstructionLinks && (
                         <button
                           type="button"
                           className="btn-secondary"
@@ -1208,7 +1351,7 @@ export default function CardDetailPage() {
                       </div>
                     </div>
 
-                    {canManageComponentLinks && (
+                    {canDetachComponentLinks && (
                       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                         <button
                           type="button"
@@ -1322,23 +1465,24 @@ export default function CardDetailPage() {
             </div>
             <div className="card-body">
               {/* New comment */}
-              {canAddInlineComment && (
-                <div className="mb-4">
-                  <textarea
-                    className="input min-h-20 resize-none"
-                    placeholder={isInformationalCard ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                  />
-                  <button
-                    className="btn-primary text-sm mt-2"
-                    disabled={!newComment.trim() || commentMutation.isPending}
-                    onClick={() => commentMutation.mutate(newComment)}
-                  >
-                    {isInformationalCard ? 'Добавить комментарий' : 'Отправить комментарий'}
-                  </button>
-                </div>
-              )}
+                {canAddInlineComment && (
+                  <div className="mb-4">
+                    <MentionTextarea
+                      className="resize-none"
+                      minHeightClass="min-h-20"
+                      placeholder={isInformationalCard ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
+                      value={newComment}
+                      onChange={setNewComment}
+                    />
+                    <button
+                      className="btn-primary text-sm mt-2"
+                      disabled={!newComment.trim() || commentMutation.isPending}
+                      onClick={() => commentMutation.mutate(newComment)}
+                    >
+                      {isInformationalCard ? 'Добавить комментарий' : 'Отправить комментарий'}
+                    </button>
+                  </div>
+                )}
 
               {/* Comments list */}
               {card.comments?.length === 0 ? (
@@ -1592,11 +1736,11 @@ export default function CardDetailPage() {
 
             <div className="mb-6">
               <label className="label">Комментарий к версии</label>
-              <textarea
-                className="input min-h-20 resize-none"
+              <MentionTextarea
                 placeholder="Что изменено или добавлено (необязательно)..."
                 value={resComment}
-                onChange={e => setResComment(e.target.value)}
+                onChange={setResComment}
+                minHeightClass="min-h-20"
               />
             </div>
 
@@ -1655,16 +1799,22 @@ export default function CardDetailPage() {
               </div>
             )}
 
-            {pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW' && (
-              <div className="mb-4">
-                <label className={`label ${isAdmin ? '' : 'label-required'}`}>Замечания</label>
-                <MentionTextarea
-                  placeholder={isAdmin ? 'Комментарий к возврату (необязательно)...' : 'Опишите обнаруженные ошибки или замечания...'}
-                  value={statusComment}
-                  onChange={setStatusComment}
-                  minHeightClass="min-h-24"
-                />
-              </div>
+              {pendingStatus === 'IN_PROGRESS' && card.status === 'REVIEW' && (
+                <div className="mb-4">
+                  <label className={`label ${isAdmin ? '' : 'label-required'}`}>Замечания</label>
+                  <MentionTextarea
+                    placeholder={
+                      isAdmin
+                        ? 'Комментарий к возврату (необязательно)...'
+                        : hasUncheckedReviewProtocolItems
+                        ? 'Можете добавить общий комментарий. Непройденные пункты протокола будут подставлены автоматически.'
+                        : 'Опишите обнаруженные ошибки или замечания...'
+                    }
+                    value={statusComment}
+                    onChange={setStatusComment}
+                    minHeightClass="min-h-24"
+                  />
+                </div>
             )}
 
             {pendingStatus === 'DONE' && (
@@ -1708,20 +1858,60 @@ export default function CardDetailPage() {
         </div>
       )}
 
-      <CardInstructionsSidebar
-        cardId={id}
-        isOpen={showInstructionsSidebar}
-        onClose={() => setShowInstructionsSidebar(false)}
-        linkedInstructions={linkedInstructions || []}
-        canManage={canManageInstructionLinks}
-      />
-      <CardComponentsSidebar
-        cardId={id}
-        isOpen={showComponentsSidebar}
-        onClose={() => setShowComponentsSidebar(false)}
-        linkedComponents={linkedComponents || []}
-        canManage={canManageComponentLinks}
-      />
-    </AppLayout>
-  );
-}
+        <CardInstructionsSidebar
+          cardId={id}
+          isOpen={showInstructionsSidebar}
+          onClose={() => setShowInstructionsSidebar(false)}
+          linkedInstructions={linkedInstructions || []}
+          canManage={canManageInstructionLinks}
+          canDetach={canDetachInstructionLinks}
+        />
+        <CardComponentsSidebar
+          cardId={id}
+          isOpen={showComponentsSidebar}
+          onClose={() => setShowComponentsSidebar(false)}
+          linkedComponents={linkedComponents || []}
+          canManage={canManageComponentLinks}
+          canDetach={canDetachComponentLinks}
+        />
+        <CardReviewProtocolSidebar
+          cardId={id}
+          isOpen={showReviewProtocolSidebar}
+        onClose={() => setShowReviewProtocolSidebar(false)}
+        protocol={reviewProtocol}
+          canManage={canManageReviewProtocol}
+        />
+
+        <ConfirmDialog
+          isOpen={showReviewProtocolRemoveConfirm}
+          title="Убрать протокол проверки?"
+          description="Вы точно хотите убрать протокол проверки из карточки?"
+          confirmLabel="Убрать"
+          variant="warning"
+          loading={detachReviewProtocolMutation.isPending}
+          onCancel={() => setShowReviewProtocolRemoveConfirm(false)}
+          onConfirm={() => {
+            detachReviewProtocolMutation.mutate();
+            setShowReviewProtocolRemoveConfirm(false);
+          }}
+        />
+
+        <ConfirmDialog
+          isOpen={showCloseCardNowConfirm}
+          title="Закрыть карточку сейчас?"
+          description="Все пункты протокола пройдены. Перевести карточку сразу в статус «Готово»?"
+          confirmLabel="Закрыть карточку"
+          variant="warning"
+          loading={statusMutation.isPending}
+          onCancel={() => setShowCloseCardNowConfirm(false)}
+          onConfirm={() => {
+            setShowCloseCardNowConfirm(false);
+            statusMutation.mutate({
+              status: 'DONE',
+              force: isAdmin,
+            });
+          }}
+        />
+      </AppLayout>
+    );
+  }

@@ -1,15 +1,58 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { notificationsApi } from '@/lib/api';
 import { NotificationsCenterContent } from './NotificationsCenterContent';
 
+function playNotificationSound() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const AudioContextConstructor =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+  if (!AudioContextConstructor) {
+    return;
+  }
+
+  const context = new AudioContextConstructor();
+  const now = context.currentTime;
+
+  const masterGain = context.createGain();
+  masterGain.gain.setValueAtTime(0.0001, now);
+  masterGain.gain.exponentialRampToValueAtTime(0.06, now + 0.02);
+  masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+  masterGain.connect(context.destination);
+
+  const firstOscillator = context.createOscillator();
+  firstOscillator.type = 'sine';
+  firstOscillator.frequency.setValueAtTime(880, now);
+  firstOscillator.connect(masterGain);
+  firstOscillator.start(now);
+  firstOscillator.stop(now + 0.16);
+
+  const secondOscillator = context.createOscillator();
+  secondOscillator.type = 'sine';
+  secondOscillator.frequency.setValueAtTime(1174, now + 0.18);
+  secondOscillator.connect(masterGain);
+  secondOscillator.start(now + 0.18);
+  secondOscillator.stop(now + 0.38);
+
+  window.setTimeout(() => {
+    context.close().catch(() => undefined);
+  }, 700);
+}
+
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const unreadCountRef = useRef<number | null>(null);
+  const audioAllowedRef = useRef(false);
 
   const { data } = useQuery({
     queryKey: ['notifications-unread-count'],
@@ -20,6 +63,20 @@ export function NotificationBell() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      audioAllowedRef.current = true;
+    };
+
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio);
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
   }, []);
 
   useEffect(() => {
@@ -38,6 +95,19 @@ export function NotificationBell() {
   }, [open]);
 
   const unreadCount = data?.unreadCount ?? 0;
+
+  useEffect(() => {
+    const previousUnreadCount = unreadCountRef.current;
+    unreadCountRef.current = unreadCount;
+
+    if (previousUnreadCount === null) {
+      return;
+    }
+
+    if (unreadCount > previousUnreadCount && audioAllowedRef.current) {
+      playNotificationSound();
+    }
+  }, [unreadCount]);
 
   return (
     <>

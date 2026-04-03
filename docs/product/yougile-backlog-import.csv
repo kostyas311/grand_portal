@@ -1,0 +1,81 @@
+Title;Project;Description
+[P0] Выбрать нейтральное имя продукта;Universal Platform Roadmap;Определить рабочее нейтральное название новой универсальной платформы вместо company-specific бренда. Результат: финальное имя для platform edition и временное имя для dev ветки.
+[P0] Сформировать продуктовое позиционирование;Universal Platform Roadmap;Описать продукт как универсальную B2B платформу класса Work Management + Knowledge Base + Team Communication. Зафиксировать целевую аудиторию и ключевые сценарии использования.
+[P0] Определить продуктовые столпы;Universal Platform Roadmap;Зафиксировать 3 pillar направления: Tasks, Knowledge, Chat. Результат должен лечь в архитектурную документацию и roadmap.
+[P0] Подготовить ADR platform-first;Universal Platform Roadmap;Сформировать архитектурное решение по переходу от специализированного портала к универсальной платформе. Зафиксировать platform core, customization layer и tenant setup.
+[P0] Провести аудит company-specific логики;Universal Platform Roadmap;Составить список всех company-specific элементов в коде: логотип, тексты, помощь, footer, branding, seed data, термины и жёсткие допущения.
+[P0] Зафиксировать bounded contexts;Universal Platform Roadmap;Определить границы доменов: Organization, Projects, Teams, Work, Knowledge, Chat, Notifications, Permissions, Branding.
+[P1] Добавить OrganizationSettings в Prisma;Universal Platform Roadmap;Создать модель OrganizationSettings или TenantSettings. Поля: organizationName, productName, logoUrl, supportEmail, copyrightText, brand colors, feature flags.
+[P1] Реализовать API organization settings;Universal Platform Roadmap;Сделать backend endpoints для чтения и обновления настроек организации и брендинга. Ограничить доступ администраторами.
+[P1] Подготовить seed default organization config;Universal Platform Roadmap;Добавить безопасную базовую конфигурацию организации для чистой установки продукта.
+[P1] Переделать BrandBlock на конфиг;Universal Platform Roadmap;Убрать жёсткую привязку к текущему бренду. Компонент должен брать название, логотип и подзаголовок из настроек организации.
+[P1] Убрать hardcoded branding из layout;Universal Platform Roadmap;Переделать layout, login, footer и shared blocks так, чтобы они работали от organization settings.
+[P1] Переделать help page в нейтральную;Universal Platform Roadmap;Переписать страницу справки так, чтобы она описывала универсальную платформу, а не текущую компанию и её процесс.
+[P1] Вынести support email и ссылки в конфиг;Universal Platform Roadmap;Убрать жёсткие email и ссылки разработчика из UI. Данные должны приходить из organization settings.
+[P1] Обновить README под нейтральный продукт;Universal Platform Roadmap;Переписать README и сопутствующую документацию в platform-first терминологии без company-specific описаний.
+[P2] Добавить Project в Prisma;Universal Platform Roadmap;Создать сущность Project как контейнер проектной работы. Минимальные поля: id, name, description, status, createdAt, updatedAt, archivedAt.
+[P2] Добавить ProjectMember;Universal Platform Roadmap;Создать связь пользователь-проект с возможностью хранения project role и membership metadata.
+[P2] Добавить Team;Universal Platform Roadmap;Создать сущность Team как рабочую группу пользователей, которая может быть привязана к одному или нескольким проектам.
+[P2] Добавить TeamMember;Universal Platform Roadmap;Создать связь пользователь-команда с ролью внутри команды и membership metadata.
+[P2] Добавить ProjectTeam;Universal Platform Roadmap;Создать таблицу связи между проектом и командой для model проект -> команды.
+[P2] Добавить projectId в Card;Universal Platform Roadmap;Сделать карточку project-scoped сущностью. Подготовить миграцию existing cards в default project.
+[P2] Добавить projectId в Sprint;Universal Platform Roadmap;Сделать спринт project-scoped сущностью. Подготовить миграцию existing sprints в default project.
+[P2] Создать default project для миграции;Universal Platform Roadmap;Подготовить миграционный сценарий, при котором все текущие карточки и спринты переезжают в проект по умолчанию.
+[P2] Создать backend модуль projects;Universal Platform Roadmap;Реализовать CRUD проектов, чтение состава участников, архивирование и базовые проверки доступа.
+[P2] Создать backend модуль teams;Universal Platform Roadmap;Реализовать CRUD команд, управление составом команды, привязку команд к проектам.
+[P2] Добавить membership access checks;Universal Platform Roadmap;Все проектные сущности должны проверять не только роль, но и членство пользователя в проекте.
+[P2] Добавить project switcher во frontend;Universal Platform Roadmap;Реализовать выбор активного проекта и прокинуть project context в ключевые разделы UI.
+[P2] Создать страницы управления проектами;Universal Platform Roadmap;Добавить admin UI для создания, редактирования и архивирования проектов, а также управления участниками.
+[P2] Создать страницы управления командами;Universal Platform Roadmap;Добавить admin UI для создания команд, управления участниками и привязкой команд к проектам.
+[P2] Переделать карточки под project context;Universal Platform Roadmap;Списки карточек, канбан, dashboard и filters должны работать в рамках выбранного проекта.
+[P2] Переделать спринты под project context;Universal Platform Roadmap;Спринты должны создаваться, редактироваться и отображаться в рамках выбранного проекта.
+[P3] Добавить workflowTemplate в Project;Universal Platform Roadmap;Проект должен хранить тип процесса. Стартовые шаблоны: STANDARD, SIMPLE, REVIEW_BASED, APPROVAL_BASED.
+[P3] Описать системные workflow templates;Universal Platform Roadmap;Для каждого workflow template определить статусы, допустимые переходы и базовые бизнес-правила.
+[P3] Вынести логику переходов из CardsService;Universal Platform Roadmap;Перенести status validation в отдельный workflow service или rules layer.
+[P3] Реализовать project-aware transition validator;Universal Platform Roadmap;Сделать так, чтобы проверка переходов зависела от workflowTemplate проекта.
+[P3] Сделать dynamic action availability на фронте;Universal Platform Roadmap;UI смены статуса должен строиться из workflow проекта, а не из глобально зашитого enum сценария.
+[P3] Сделать dynamic kanban columns;Universal Platform Roadmap;Колонки канбан-доски должны зависеть от workflow проекта.
+[P3] Переделать статусные отчёты;Universal Platform Roadmap;Отчёты и метрики по статусам должны работать не только для одного фиксированного workflow.
+[P4] Добавить cardTemplate в Project;Universal Platform Roadmap;Проект должен хранить шаблон карточки, определяющий состав полей и обязательность блоков.
+[P4] Добавить ProjectCardConfig;Universal Platform Roadmap;Создать конфигурацию карточки проекта. Поля: requiresDataSource, requiresSourceMaterials, requiresResult, requiresReviewer, requiresSprint, requiresDueDate, requiresPeriod, supportsInstructions, supportsComponents, allowsChildCards.
+[P4] Определить core card fields;Universal Platform Roadmap;Зафиксировать ядро карточки, которое остаётся у всех проектов, и отделить optional sections от core model.
+[P4] Сделать project-aware create validation;Universal Platform Roadmap;Валидация создания карточки должна учитывать card config проекта.
+[P4] Сделать project-aware update validation;Universal Platform Roadmap;Валидация обновления карточки должна учитывать card config проекта.
+[P4] Ограничить выбор исполнителей и проверяющих проектом;Universal Platform Roadmap;Исполнители и проверяющие должны выбираться только из участников проекта.
+[P4] Сделать dynamic card form;Universal Platform Roadmap;Форма карточки должна показывать только релевантные для проекта блоки и поля.
+[P4] Подготовить архитектуру custom fields;Universal Platform Roadmap;Спроектировать будущее расширение через definitions и values, но не реализовывать full low-code builder на первом релизе.
+[P5] Определить модель Work Item;Universal Platform Roadmap;Решить, остаётся ли термин Card или вводится Work Item. Подготовить roadmap эволюции task object.
+[P5] Добавить типы задач;Universal Platform Roadmap;Поддержать task categories или work item types для разных сценариев использования.
+[P5] Расширить связи между задачами;Universal Platform Roadmap;Добавить зависимости, parent-child, related links и richer work relationships.
+[P5] Добавить backlog view;Universal Platform Roadmap;Реализовать отдельный режим backlog наряду с канбаном.
+[P5] Подготовить milestone/release abstraction;Universal Platform Roadmap;Сделать основу для roadmap planning и release planning сверх спринтов.
+[P5] Сделать универсальный reporting layer;Universal Platform Roadmap;Создать общую аналитическую прослойку для отчётов по проектам, статусам, типам задач и SLA.
+[P6] Ввести KnowledgeSpace;Universal Platform Roadmap;Создать пространство знаний как отдельный домен поверх текущих инструкций.
+[P6] Обобщить Instruction до Article/Document;Universal Platform Roadmap;Эволюционировать текущую модель инструкций в универсальную knowledge/documentation model.
+[P6] Добавить роли внутри пространства знаний;Universal Platform Roadmap;Поддержать owners, editors, publishers, viewers для knowledge spaces.
+[P6] Добавить версии и publication flow;Universal Platform Roadmap;Поддержать черновики, публикацию, скрытие, архивирование и историю версий для документов.
+[P6] Связать знания с проектами;Universal Platform Roadmap;Документы и статьи должны иметь возможность привязки к проекту.
+[P6] Связать знания с задачами;Universal Platform Roadmap;Knowledge articles должны уметь связываться с work items и отображаться в контексте задачи.
+[P6] Добавить шаблоны документов;Universal Platform Roadmap;Поддержать reusable page templates для onboarding, регламентов, runbooks, SOP и других сценариев.
+[P6] Добавить поиск по knowledge base;Universal Platform Roadmap;Нужен полнотекстовый поиск по заголовкам, содержимому и связям документов.
+[P6] Переделать frontend инструкций в spaces UX;Universal Platform Roadmap;Раздел инструкций должен эволюционировать в интерфейс пространств знаний с деревом документов и navigation UX.
+[P7] Создать chat data model;Universal Platform Roadmap;Добавить Channel, ChannelMember, DirectChat, Message, MessageAttachment, MessageReadState.
+[P7] Определить типы каналов;Universal Platform Roadmap;Поддержать team general, team channel, project channel, direct chat.
+[P7] Создать backend chat module;Universal Platform Roadmap;Реализовать базовый backend модуль корпоративного чата.
+[P7] Реализовать API каналов;Universal Platform Roadmap;Создать API для списков каналов, создания каналов, membership management и direct chats.
+[P7] Реализовать API сообщений;Universal Platform Roadmap;Добавить создание, чтение, редактирование, удаление и пагинацию сообщений.
+[P7] Добавить WebSocket realtime;Universal Platform Roadmap;Сделать realtime layer для новых сообщений, обновлений и read state.
+[P7] Реализовать unread/read model;Universal Platform Roadmap;Поддержать счётчики непрочитанных и отметки прочтения по каналам и ЛС.
+[P7] Интегрировать system messages;Universal Platform Roadmap;Сделать сообщения в чат по событиям задач и документов.
+[P7] Создать frontend chat workspace;Universal Platform Roadmap;Добавить раздел чатов с левой навигацией и окном обсуждения.
+[P7] Добавить composer и attachments;Universal Platform Roadmap;Поддержать ввод текста, вложения и базовую обработку сообщений в UI.
+[P8] Спроектировать многоуровневую роль-модель;Universal Platform Roadmap;Ввести system roles, organization roles, project roles, space roles, channel roles.
+[P8] Вынести доступы в policy layer;Universal Platform Roadmap;Перевести проверки доступа от простых ролей к policy-based authorization.
+[P8] Сделать admin UX для ролей;Universal Platform Roadmap;Добавить интерфейсы назначения ролей и управления доступом в разных контекстах.
+[P8] Добавить аудит access changes;Universal Platform Roadmap;Критичные изменения прав должны логироваться и быть просматриваемыми администраторами.
+[P9] Подготовить onboarding новой организации;Universal Platform Roadmap;Сделать setup wizard для первой настройки tenant/company.
+[P9] Подготовить шаблоны внедрения;Universal Platform Roadmap;Сделать default templates по workflow, карточкам, knowledge spaces и каналам для разных типов компаний.
+[P9] Подготовить production deployment presets;Universal Platform Roadmap;Сделать deployment guide и environment presets для self-hosted внедрения.
+[P9] Добавить observability baseline;Universal Platform Roadmap;Health endpoints, structured logs, metrics, alert hooks и runbooks.
+[P9] Подготовить admin guide и user guide;Universal Platform Roadmap;Сформировать эксплуатационную документацию для внедрения и работы продукта.
+[P9] Подготовить desktop-client release flow;Universal Platform Roadmap;Сформировать lifecycle desktop-приложения как companion app универсальной платформы.

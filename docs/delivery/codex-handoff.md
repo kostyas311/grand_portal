@@ -1,29 +1,33 @@
 # Codex Handoff
 
-## Что Это За Проект
+## Что это за проект
 
 - Название: `Нормбаза`
-- Назначение: внутренний портал для управления сметно-нормативной документацией и связанным документооборотом
+- Назначение: внутренний портал для сопровождения сметно-нормативной документации, карточек задач, инструкций и связанных процессов
 - Формат: monorepo
 - Backend: NestJS + Prisma + PostgreSQL
 - Frontend: Next.js App Router
 - Контейнеризация: `docker compose`
 
-## Где Основное
+## Где основное
 
 - Backend:
-  - [app.module.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\app.module.ts)
-  - [schema.prisma](C:\Users\S\Documents\AI\normbase_portal\apps\api\prisma\schema.prisma)
-  - [cards.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\cards\cards.service.ts)
-  - [notifications.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notifications\notifications.service.ts)
+  - `apps/api/src/app.module.ts`
+  - `apps/api/prisma/schema.prisma`
+  - `apps/api/src/modules/cards/cards.service.ts`
+  - `apps/api/src/modules/notifications/notifications.service.ts`
+  - `apps/api/src/modules/instructions/instructions.service.ts`
+  - `apps/api/src/modules/admin-requests/admin-requests.service.ts`
 - Frontend:
-  - [dashboard/page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\dashboard\page.tsx)
-  - [cards/page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\cards\page.tsx)
-  - [cards/[id]/page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\cards\[id]\page.tsx)
-  - [Sidebar.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\components\layout\Sidebar.tsx)
-  - [globals.css](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\globals.css)
+  - `apps/web/src/app/dashboard/page.tsx`
+  - `apps/web/src/app/cards/page.tsx`
+  - `apps/web/src/app/cards/[id]/page.tsx`
+  - `apps/web/src/app/instructions/page.tsx`
+  - `apps/web/src/app/requests/page.tsx`
+  - `apps/web/src/components/layout/Sidebar.tsx`
+  - `apps/web/src/app/globals.css`
 
-## Что Уже Реализовано
+## Что уже реализовано
 
 - Карточки с жизненным циклом:
   - `NEW`
@@ -35,91 +39,88 @@
   - `USER`
   - `MANAGER`
   - `ADMIN`
-- Канбан-доска и список карточек
+- Список карточек и канбан-доска
+- Фильтрация и сводные виджеты на главной странице
 - Центр уведомлений
+- Email-настройки уведомлений
 - Обращения к администратору
+- База инструкций:
+  - папки
+  - публикация
+  - вложения
+  - связи с карточками и источниками
+- Протоколы проверки:
+  - отдельный раздел
+  - шаблоны с пунктами
+  - прикрепление к источникам данных
+  - копирование в карточку
+  - контроль закрытия карточки через чек-лист
+- Спринты
 - Подписка на карточки
 - Информационные карточки:
   - `withoutSourceMaterials`
   - `withoutResult`
 - Версионирование результатов
 - История действий и комментарии
+- Светлая и тёмная тема
 - Отчёты
-- Отдельная бизнес-презентация продукта:
-  - [executive-presentation.html](C:\Users\S\Documents\AI\normbase_portal\docs\product\executive-presentation.html)
 
-## Важные Бизнес-Правила
+## Важные бизнес-правила
 
-- Создатель карточки автоматически подписывается на неё как watcher с `AUTO`
-- В режиме `Назначено на меня` карточки должны показываться только если:
-  - пользователь исполнитель
-  - или пользователь проверяющий и карточка в `REVIEW`
-  - или пользователь подписался вручную (`MANUAL`)
-- Для информационной карточки:
-  - блок исходных материалов скрывается, если карточка помечена как без ИД
-  - результат можно загружать всегда, даже если он необязателен
-- Отмена карточки доступна любой роли
+- создатель карточки автоматически подписывается на неё как watcher с `AUTO`;
+- карточка может быть информационной и не требовать исходных материалов и/или результата;
+- результат можно загружать даже если он необязателен по логике карточки;
+- отмена карточки доступна любой роли;
+- переход `IN_PROGRESS -> REVIEW` требует назначенного проверяющего и результата;
+- возврат из `REVIEW` в `IN_PROGRESS` требует комментарий;
+- если у карточки есть протокол проверки, переход `REVIEW -> DONE` требует закрытия всех пунктов, кроме администратора;
+- при возврате карточки с незавершённым протоколом комментарий автоматически дополняется непройденными пунктами;
+- в статусе `REVIEW` снять протокол, инструкцию или компонент может только проверяющий или администратор;
+- закрытые карточки (`DONE`, `CANCELLED`) редактировать нельзя.
 
 ## Уведомления
 
-### Внутренние уведомления
+### Внутренние
 
-- Хранятся в:
-  - `notifications`
-  - `pending_notifications`
-- Логика батчинга:
-  - уведомления накапливаются
-  - flush раз в 3 минуты
 - Основной файл:
-  - [notifications.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notifications\notifications.service.ts)
+  - `apps/api/src/modules/notifications/notifications.service.ts`
+- Есть:
+  - список уведомлений;
+  - счётчик непрочитанных;
+  - уведомления по карточкам;
+  - уведомления по обращениям к администратору.
 
-### Email-уведомления
+### Email
 
-- Добавлен singleton-конфиг SMTP:
-  - модель `NotificationEmailSettings` в [schema.prisma](C:\Users\S\Documents\AI\normbase_portal\apps\api\prisma\schema.prisma)
 - Admin-only API:
   - `GET /api/notification-email-settings`
   - `PATCH /api/notification-email-settings`
   - `POST /api/notification-email-settings/test`
 - Backend:
-  - [notification-email-settings.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notification-email-settings\notification-email-settings.service.ts)
-  - [notification-email-settings.controller.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notification-email-settings\notification-email-settings.controller.ts)
-- Frontend-страница админа:
-  - [page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\admin\notifications\page.tsx)
+  - `apps/api/src/modules/notification-email-settings/notification-email-settings.service.ts`
+  - `apps/api/src/modules/notification-email-settings/notification-email-settings.controller.ts`
+- Frontend:
+  - `apps/web/src/app/admin/notifications/page.tsx`
 
-### Текущая Логика Email-Адресатов
-
-- Для карточек email отправляется только если пользователь:
-  - подписан на карточку
-  - или является создателем карточки
-  - или является проверяющим для события `REVIEW_REQUEST`
-- Для обращений к администратору письма идут только тем, кому само уведомление назначено
-- Письма:
-  - HTML
-  - содержат только новые изменения за текущий интервал
-  - содержат прямую ссылку на карточку или `/requests`
-
-### Важный Технический Нюанс
-
-- Для `nodemailer` в Nest/CommonJS нужно использовать:
-  - `import * as nodemailer from 'nodemailer'`
-- Это уже исправлено в:
-  - [notification-email-settings.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notification-email-settings\notification-email-settings.service.ts)
-  - [notifications.service.ts](C:\Users\S\Documents\AI\normbase_portal\apps\api\src\modules\notifications\notifications.service.ts)
-
-## Админский Раздел
+## Админский раздел
 
 - Пользователи:
-  - [admin/users/page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\admin\users\page.tsx)
+  - `apps/web/src/app/admin/users/page.tsx`
 - Email-уведомления:
-  - [admin/notifications/page.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\app\admin\notifications\page.tsx)
-- Пункт меню уже добавлен в:
-  - [Sidebar.tsx](C:\Users\S\Documents\AI\normbase_portal\apps\web\src\components\layout\Sidebar.tsx)
+  - `apps/web/src/app/admin/notifications/page.tsx`
+- Спринты:
+  - `apps/web/src/app/admin/sprints/page.tsx`
+- Навигация:
+  - `apps/web/src/components/layout/Sidebar.tsx`
 
-## Docker И Запуск
+## Docker и запуск
 
 - Основная команда пересборки:
-  - `docker compose up -d --build api web`
+  - `docker compose up -d --build`
+- API-образ на старте выполняет:
+  - `prisma db push`
+  - `seed`
+  - запуск `node dist/main`
 - Проверка состояния:
   - `docker compose ps`
 - Логи:
@@ -127,45 +128,46 @@
   - `docker compose logs --tail=40 web`
   - `docker compose logs --tail=40 nginx`
 
-## Текущее Состояние После Последних Изменений
+## Текущее состояние
 
 - `api` собирается и стартует
 - `web` собирается и стартует
-- `nginx` работает
-- Маршрут `/admin/notifications` существует
-- Маршрут `POST /api/notification-email-settings/test` существует
-- Ошибка `500` на тесте соединения из-за `nodemailer.createTransport` уже исправлена
+- `nginx` работает как reverse proxy
+- `postgres` используется как основная БД
+- маршруты для карточек, инструкций, обращений, профиля, отчётов и админки присутствуют
 
-## Что Лучше Проверять Первым Делом В Новой Сессии
+## Что лучше проверять первым делом в новой сессии
 
-1. Открыть `/admin/notifications`
-2. Проверить `Тест соединения` на реальном SMTP
-3. Проверить сохранение SMTP-настроек
-4. Проверить реальную email-доставку:
-   - изменение статуса карточки
-   - комментарий
-   - отправка на проверку
-5. Убедиться, что письма не уходят лишним адресатам
+1. `docker compose ps`
+2. `docker compose logs --tail=80 api`
+3. вход под администратором
+4. список карточек и карточку `/cards/[id]`
+5. `/notifications`
+6. `/requests`
+7. `/instructions`
+8. `/review-protocols`
+9. `/admin/notifications`
 
-## Что Можно Улучшить Дальше
+## Что можно улучшать дальше
 
-- Добавить кнопку `Отправить тестовое письмо`
-- Сделать блокировку `Сохранить`, пока тест не пройден на текущем наборе полей
-- Вынести HTML-шаблон email в отдельный template helper
-- Добавить более дружелюбные тексты SMTP-ошибок
-- Добавить `PORTAL_BASE_URL` в `.env.example` явно, если письма будут использоваться не только на `localhost`
+- вынести более подробный operational runbook по резервному копированию;
+- добавить автоматические healthchecks и readiness-маршруты;
+- расширить покрытие документации по инструкциям и компонентам карточек;
+- описать сценарии нагрузочного тестирования и отказоустойчивости;
+- подготовить чек-лист регрессионной проверки перед релизом.
 
-## Полезные Артефакты Внутри Проекта
+## Полезные артефакты внутри проекта
 
-- Презентация для руководства:
-  - [executive-presentation.html](C:\Users\S\Documents\AI\normbase_portal\docs\product\executive-presentation.html)
-- Снятые реальные материалы для презентации:
-  - [login.png](C:\Users\S\Documents\AI\normbase_portal\docs\product\screens\login.png)
-  - [login-inprivate.png](C:\Users\S\Documents\AI\normbase_portal\docs\product\screens\login-inprivate.png)
+- Презентация:
+  - `docs/product/executive-presentation.html`
+- Продуктовые документы:
+  - `docs/product/product-brief.md`
+  - `docs/product/roles-permissions-matrix.md`
+  - `docs/product/status-transitions.md`
 
-## Что Не Стоит Сохранять В ХэндОффе
+## Что не стоит сохранять в handoff
 
-- Реальные SMTP-пароли
-- Приватные логины
-- Временные профили браузера в `docs/product/edge-profile*`
-
+- реальные SMTP-пароли;
+- приватные логины;
+- локальные `.env`;
+- временные browser profile директории внутри `docs/product/edge-profile*`.

@@ -138,6 +138,11 @@ model User {
   updatedComponents Component[] @relation("ComponentUpdater")
   componentCardLinks CardComponent[] @relation("CardComponentCreator")
   componentDataSourceLinks DataSourceComponent[] @relation("DataSourceComponentCreator")
+  createdReviewProtocols ReviewProtocol[] @relation("ReviewProtocolCreator")
+  updatedReviewProtocols ReviewProtocol[] @relation("ReviewProtocolUpdater")
+  attachedCardReviewProtocols CardReviewProtocol[] @relation("CardReviewProtocolCreator")
+  updatedCardReviewProtocols CardReviewProtocol[] @relation("CardReviewProtocolUpdater")
+  checkedReviewProtocolItems CardReviewProtocolItem[] @relation("CardReviewProtocolItemChecker")
 
   @@index([email])
   @@index([role])
@@ -174,9 +179,12 @@ model DataSource {
   cards     Card[]
   instructionLinks DataSourceInstruction[]
   componentLinks DataSourceComponent[]
+  reviewProtocolId String? @map("review_protocol_id")
+  reviewProtocol ReviewProtocol? @relation(fields: [reviewProtocolId], references: [id])
 
   @@index([isActive])
   @@index([name])
+  @@index([reviewProtocolId])
   @@map("data_sources")
 }
 
@@ -224,6 +232,7 @@ model Card {
   children        Card[]          @relation("CardHierarchy")
   instructionLinks CardInstruction[]
   componentLinks CardComponent[]
+  reviewProtocol CardReviewProtocol?
 
   @@index([status])
   @@index([dataSourceId])
@@ -677,4 +686,85 @@ model DataSourceComponent {
   @@index([componentId])
   @@index([createdById])
   @@map("data_source_components")
+}
+
+model ReviewProtocol {
+  id          String   @id @default(uuid())
+  publicId    String   @unique @map("public_id")
+  title       String
+  description String?
+  isArchived  Boolean  @default(false) @map("is_archived")
+  createdById String   @map("created_by")
+  updatedById String?  @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User @relation("ReviewProtocolCreator", fields: [createdById], references: [id])
+  updatedBy User? @relation("ReviewProtocolUpdater", fields: [updatedById], references: [id])
+  items ReviewProtocolItem[]
+  dataSources DataSource[]
+  cardCopies CardReviewProtocol[]
+
+  @@index([title])
+  @@index([isArchived])
+  @@index([createdById])
+  @@index([updatedAt])
+  @@map("review_protocols")
+}
+
+model ReviewProtocolItem {
+  id         String   @id @default(uuid())
+  protocolId String   @map("protocol_id")
+  text       String
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  protocol ReviewProtocol @relation(fields: [protocolId], references: [id], onDelete: Cascade)
+
+  @@index([protocolId])
+  @@index([sortOrder])
+  @@map("review_protocol_items")
+}
+
+model CardReviewProtocol {
+  id               String   @id @default(uuid())
+  cardId           String   @unique @map("card_id")
+  sourceProtocolId String?  @map("source_protocol_id")
+  title            String
+  description      String?
+  createdById      String   @map("created_by")
+  updatedById      String?  @map("updated_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  sourceProtocol ReviewProtocol? @relation(fields: [sourceProtocolId], references: [id], onDelete: SetNull)
+  createdBy User @relation("CardReviewProtocolCreator", fields: [createdById], references: [id])
+  updatedBy User? @relation("CardReviewProtocolUpdater", fields: [updatedById], references: [id])
+  items CardReviewProtocolItem[]
+
+  @@index([sourceProtocolId])
+  @@index([createdById])
+  @@map("card_review_protocols")
+}
+
+model CardReviewProtocolItem {
+  id             String    @id @default(uuid())
+  cardProtocolId String    @map("card_protocol_id")
+  text           String
+  sortOrder      Int       @default(0) @map("sort_order")
+  isChecked      Boolean   @default(false) @map("is_checked")
+  checkedAt      DateTime? @map("checked_at")
+  checkedById    String?   @map("checked_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  cardProtocol CardReviewProtocol @relation(fields: [cardProtocolId], references: [id], onDelete: Cascade)
+  checkedBy User? @relation("CardReviewProtocolItemChecker", fields: [checkedById], references: [id])
+
+  @@index([cardProtocolId])
+  @@index([sortOrder])
+  @@index([checkedById])
+  @@map("card_review_protocol_items")
 }
