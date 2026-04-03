@@ -4,6 +4,10 @@ function decodeMentionName(value: string) {
   return value.replace(/\\'/g, "'");
 }
 
+function encodeMentionName(value: string) {
+  return value.replace(/'/g, "\\'");
+}
+
 function getMentionMatchParts(match: RegExpExecArray) {
   return {
     name: decodeMentionName((match[1] || match[3] || '').trim()),
@@ -91,8 +95,51 @@ export function stripMentionMarkupFromHtml(html?: string | null) {
     .trim();
 }
 
+function preserveMentionMarkupFromHtml(html?: string | null) {
+  if (!html) {
+    return '';
+  }
+
+  return html
+    .replace(
+      /<span[^>]*data-mention-id=(?:"([^"]+)"|'([^']+)')[^>]*data-mention-name=(?:"([^"]+)"|'([^']+)')[^>]*>(.*?)<\/span>/gi,
+      (
+        _,
+        doubleQuotedId: string,
+        singleQuotedId: string,
+        doubleQuotedName: string,
+        singleQuotedName: string,
+        innerText: string,
+      ) => {
+        const userId = (doubleQuotedId || singleQuotedId || '').trim();
+        const mentionName = (doubleQuotedName || singleQuotedName || innerText || '')
+          .replace(/^@/, '')
+          .trim();
+
+        if (!userId || !mentionName) {
+          return innerText || '';
+        }
+
+        return `@'${encodeMentionName(mentionName)}'(${userId})`;
+      },
+    )
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function compactMentionPreview(text?: string | null, maxLength = 180) {
-  const source = text?.includes('<') ? stripMentionMarkupFromHtml(text) : stripMentionMarkupFromText(text);
+  const source = text?.includes('<')
+    ? preserveMentionMarkupFromHtml(text)
+    : text || '';
   const normalized = source.replace(/\s+/g, ' ').trim();
   if (!normalized) {
     return '';

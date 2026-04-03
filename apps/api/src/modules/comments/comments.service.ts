@@ -106,7 +106,6 @@ export class CommentsService {
         actorId: userId,
         includeWatchers: false,
         extraUserIds: mentionedUserIds,
-        excludeUserIds: [userId],
       });
     }
 

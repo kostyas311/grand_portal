@@ -1,6 +1,7 @@
 'use client';
 
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Bold,
   Boxes,
@@ -19,7 +20,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { usersApi } from '@/lib/api';
 import type { ComponentItem } from '@/lib/api/components';
+import { useAuthStore, type User } from '@/lib/store/auth.store';
+import {
+  findMentionMatchInContentEditable,
+  getMentionSuggestions,
+} from '@/lib/mentions';
 
 export interface InstructionEditorAttachmentOption {
   key: string;
@@ -35,6 +42,15 @@ interface InstructionEditorProps {
   onAddPendingAttachments?: (files: File[]) => InstructionEditorAttachmentOption[];
   components?: ComponentItem[];
 }
+
+type MentionState = {
+  query: string;
+  startNode: Text;
+  startOffset: number;
+  endNode: Text;
+  endOffset: number;
+  rect: DOMRect;
+};
 
 function ToolbarButton({
   onClick,
@@ -91,10 +107,28 @@ export function InstructionEditor({
   const [selectedLinkText, setSelectedLinkText] = useState('');
   const [componentSearch, setComponentSearch] = useState('');
   const [isTableSelection, setIsTableSelection] = useState(false);
+  const [mentionState, setMentionState] = useState<MentionState | null>(null);
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0);
+  const { user } = useAuthStore();
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ['mentionable-users'],
+    queryFn: () => usersApi.getDirectory(true),
+    staleTime: 60_000,
+  });
 
   const attachmentOptions = useMemo(
     () => [...attachments].sort((a, b) => a.fileName.localeCompare(b.fileName, 'ru')),
     [attachments],
+  );
+
+  const mentionSuggestions = useMemo(
+    () =>
+      getMentionSuggestions(
+        users.filter((candidate) => candidate.id !== user?.id),
+        mentionState?.query || '',
+      ),
+    [users, user?.id, mentionState?.query],
   );
 
   const filteredComponents = useMemo(() => {
@@ -120,10 +154,85 @@ export function InstructionEditor({
     }
   }, [value]);
 
+  useEffect(() => {
+    if (activeMentionIndex > mentionSuggestions.length - 1) {
+      setActiveMentionIndex(0);
+    }
+  }, [activeMentionIndex, mentionSuggestions.length]);
+
   const syncContent = () => {
     const editor = editorRef.current;
     if (!editor) return;
     onChange(editor.innerHTML);
+  };
+
+  const updateMentionQuery = () => {
+    if (!editorRef.current) {
+      setMentionState(null);
+      return;
+    }
+
+    const mentionMatch = findMentionMatchInContentEditable(editorRef.current);
+    if (!mentionMatch) {
+      setMentionState(null);
+      return;
+    }
+
+    setMentionState((current) => {
+      if (current?.query !== mentionMatch.query) {
+        setActiveMentionIndex(0);
+      }
+
+      return {
+        query: mentionMatch.query,
+        startNode: mentionMatch.startNode,
+        startOffset: mentionMatch.startOffset,
+        endNode: mentionMatch.endNode,
+        endOffset: mentionMatch.endOffset,
+        rect: mentionMatch.rect,
+      };
+    });
+  };
+
+  const placeCaretAfter = (node: Node, offset = 0) => {
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    const range = document.createRange();
+    range.setStart(node, offset);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    savedRangeRef.current = range.cloneRange();
+  };
+
+  const insertMention = (user: User) => {
+    if (!mentionState) {
+      return;
+    }
+
+    const range = document.createRange();
+    range.setStart(mentionState.startNode, mentionState.startOffset);
+    range.setEnd(mentionState.endNode, mentionState.endOffset);
+
+    const mentionNode = document.createElement('span');
+    mentionNode.className = 'mention-token';
+    mentionNode.setAttribute('contenteditable', 'false');
+    mentionNode.dataset.mentionId = user.id;
+    mentionNode.dataset.mentionName = user.fullName;
+    mentionNode.textContent = `@${user.fullName}`;
+
+    const trailingText = document.createTextNode(' ');
+    range.deleteContents();
+    range.insertNode(trailingText);
+    range.insertNode(mentionNode);
+
+    placeCaretAfter(trailingText, 1);
+    syncContent();
+    setMentionState(null);
+    editorRef.current?.focus();
   };
 
   const saveSelection = () => {
@@ -483,6 +592,43 @@ export function InstructionEditor({
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   }, []);
 
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (mentionState && mentionSuggestions.length > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveMentionIndex((current) => (current + 1) % mentionSuggestions.length);
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveMentionIndex((current) => (current - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+        return;
+      }
+
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        insertMention(mentionSuggestions[activeMentionIndex] || mentionSuggestions[0]);
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMentionState(null);
+        return;
+      }
+    }
+  };
+
+  const handleEditorKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
+      return;
+    }
+
+    updateSelectionState();
+    updateMentionQuery();
+  };
+
   return (
     <div className="instruction-editor-shell">
       <div className="instruction-editor-layout">
@@ -753,13 +899,46 @@ export function InstructionEditor({
             contentEditable
             suppressContentEditableWarning
             data-placeholder="Опиши порядок действий, добавь блоки, таблицы, код, ссылки и вложения..."
-            onInput={syncContent}
+            onInput={() => {
+              syncContent();
+              updateMentionQuery();
+            }}
+            onKeyDown={handleEditorKeyDown}
             onMouseUp={updateSelectionState}
-            onKeyUp={updateSelectionState}
-            onBlur={updateSelectionState}
+            onKeyUp={handleEditorKeyUp}
+            onFocus={updateMentionQuery}
+            onBlur={() => {
+              updateSelectionState();
+              window.setTimeout(() => setMentionState(null), 100);
+            }}
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleComponentDrop}
           />
+          {mentionState && mentionSuggestions.length > 0 && (
+            <div
+              className="mention-suggestions"
+              style={{
+                top: Math.min(mentionState.rect.bottom + 8, window.innerHeight - 240),
+                left: Math.min(
+                  Math.max(mentionState.rect.left, 16),
+                  window.innerWidth - 340,
+                ),
+              }}
+            >
+              {mentionSuggestions.map((user, index) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  className={cn('mention-suggestion-item', index === activeMentionIndex && 'mention-suggestion-item-active')}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertMention(user)}
+                >
+                  <div className="mention-suggestion-title">{user.fullName}</div>
+                  <div className="mention-suggestion-meta">{user.email}</div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <aside className="instruction-components-sidebar">

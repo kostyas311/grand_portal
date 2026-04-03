@@ -24,7 +24,6 @@ import { ReviewProtocolsService } from '../review-protocols/review-protocols.ser
 import {
   compactMentionPreview,
   extractMentionedUserIdsFromText,
-  getNewMentionedUserIds,
 } from '../../common/utils/mentions.util';
 
 const CARD_INCLUDE = {
@@ -208,6 +207,7 @@ export class CardsService {
     const where: any = {
       status: CardStatus.DONE,
       isArchived: false,
+      parentId: null,
     };
 
     if (filter.dataSourceId) where.dataSourceId = filter.dataSourceId;
@@ -438,11 +438,7 @@ export class CardsService {
     if (dto.description !== undefined) {
       await this.notifyMentionedUsersForCard(
         updated,
-        getNewMentionedUserIds(
-          extractMentionedUserIdsFromText(card.description),
-          extractMentionedUserIdsFromText(dto.description),
-          [userId],
-        ),
+        extractMentionedUserIdsFromText(dto.description),
         userId,
         'в описании карточки',
         dto.description,
@@ -979,7 +975,6 @@ export class CardsService {
       actorId,
       includeWatchers: false,
       extraUserIds: mentionedUserIds,
-      excludeUserIds: [actorId],
     });
   }
 

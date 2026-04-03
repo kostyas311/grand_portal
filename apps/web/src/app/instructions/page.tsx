@@ -7,6 +7,7 @@ import { BookText, ExternalLink, Plus, Search } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { InstructionTree } from '@/components/instructions/InstructionTree';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { MentionText } from '@/components/shared/MentionText';
 import { getAccessToken } from '@/lib/api';
 import { InstructionStatusBadge } from '@/components/instructions/InstructionStatusBadge';
 import { InstructionStatus, instructionsApi } from '@/lib/api/instructions';
@@ -262,7 +263,9 @@ export default function InstructionsPage() {
                           </h2>
 
                           {instruction.summary && (
-                            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">{instruction.summary}</p>
+                            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">
+                              <MentionText text={instruction.summary} />
+                            </p>
                           )}
 
                           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">

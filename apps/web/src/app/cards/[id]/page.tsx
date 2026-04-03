@@ -994,7 +994,7 @@ export default function CardDetailPage() {
               <div className="space-y-3">
                 {reviewProtocol.description && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                    {reviewProtocol.description}
+                    <MentionText text={reviewProtocol.description} />
                   </div>
                 )}
 
@@ -1015,7 +1015,9 @@ export default function CardDetailPage() {
                       onChange={() => toggleReviewProtocolItemMutation.mutate(item.id)}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-slate-800">{item.text}</div>
+                      <div className="text-sm text-slate-800">
+                        <MentionText text={item.text} />
+                      </div>
                       {item.isChecked && (
                         <div className="mt-2 text-xs text-emerald-700">
                           Отметил: {displayUserName(item.checkedBy, user?.id)}{item.checkedAt ? ` · ${formatRelative(item.checkedAt)}` : ''}
@@ -1463,23 +1465,24 @@ export default function CardDetailPage() {
             </div>
             <div className="card-body">
               {/* New comment */}
-              {canAddInlineComment && (
-                <div className="mb-4">
-                  <textarea
-                    className="input min-h-20 resize-none"
-                    placeholder={isInformationalCard ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                  />
-                  <button
-                    className="btn-primary text-sm mt-2"
-                    disabled={!newComment.trim() || commentMutation.isPending}
-                    onClick={() => commentMutation.mutate(newComment)}
-                  >
-                    {isInformationalCard ? 'Добавить комментарий' : 'Отправить комментарий'}
-                  </button>
-                </div>
-              )}
+                {canAddInlineComment && (
+                  <div className="mb-4">
+                    <MentionTextarea
+                      className="resize-none"
+                      minHeightClass="min-h-20"
+                      placeholder={isInformationalCard ? 'Добавить комментарий или пояснение...' : 'Добавить комментарий...'}
+                      value={newComment}
+                      onChange={setNewComment}
+                    />
+                    <button
+                      className="btn-primary text-sm mt-2"
+                      disabled={!newComment.trim() || commentMutation.isPending}
+                      onClick={() => commentMutation.mutate(newComment)}
+                    >
+                      {isInformationalCard ? 'Добавить комментарий' : 'Отправить комментарий'}
+                    </button>
+                  </div>
+                )}
 
               {/* Comments list */}
               {card.comments?.length === 0 ? (
@@ -1733,11 +1736,11 @@ export default function CardDetailPage() {
 
             <div className="mb-6">
               <label className="label">Комментарий к версии</label>
-              <textarea
-                className="input min-h-20 resize-none"
+              <MentionTextarea
                 placeholder="Что изменено или добавлено (необязательно)..."
                 value={resComment}
-                onChange={e => setResComment(e.target.value)}
+                onChange={setResComment}
+                minHeightClass="min-h-20"
               />
             </div>
 

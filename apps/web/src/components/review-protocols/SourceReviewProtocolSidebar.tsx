@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Plus, Search, Unlink2, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { MentionText } from '@/components/shared/MentionText';
 import { reviewProtocolsApi } from '@/lib/api/reviewProtocols';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +91,11 @@ export function SourceReviewProtocolSidebar({
                   <span className="page-chip font-mono">{linkedProtocol.publicId}</span>
                 </div>
                 <div className="mt-3 text-sm font-semibold text-slate-900">{linkedProtocol.title}</div>
-                {linkedProtocol.description && <p className="mt-1 text-sm text-slate-500">{linkedProtocol.description}</p>}
+                {linkedProtocol.description && (
+                  <p className="mt-1 text-sm text-slate-500">
+                    <MentionText text={linkedProtocol.description} />
+                  </p>
+                )}
                 <div className="mt-2 text-xs text-slate-400">{linkedProtocol.items.length} пунктов проверки</div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Link href={`/review-protocols/${linkedProtocol.publicId}`} className="btn-secondary">Открыть</Link>
@@ -123,7 +128,11 @@ export function SourceReviewProtocolSidebar({
                       <span className="page-chip font-mono">{item.publicId}</span>
                     </div>
                     <div className="mt-3 text-sm font-semibold text-slate-900">{item.title}</div>
-                    {item.description && <p className="mt-1 text-sm text-slate-500">{item.description}</p>}
+                    {item.description && (
+                      <p className="mt-1 text-sm text-slate-500">
+                        <MentionText text={item.description} />
+                      </p>
+                    )}
                     <div className="mt-2 text-xs text-slate-400">{item.items.length} пунктов проверки</div>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                       <Link href={`/review-protocols/${item.publicId}`} className="btn-secondary">Открыть</Link>

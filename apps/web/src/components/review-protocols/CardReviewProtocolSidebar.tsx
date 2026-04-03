@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, Plus, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { MentionText } from '@/components/shared/MentionText';
 import { reviewProtocolsApi, type CardReviewProtocol } from '@/lib/api/reviewProtocols';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +91,11 @@ export function CardReviewProtocolSidebar({
                           <span className="page-chip font-mono">{item.publicId}</span>
                         </div>
                         <div className="mt-3 text-sm font-semibold text-slate-900">{item.title}</div>
-                        {item.description && <p className="mt-1 text-sm text-slate-500">{item.description}</p>}
+                        {item.description && (
+                          <p className="mt-1 text-sm text-slate-500">
+                            <MentionText text={item.description} />
+                          </p>
+                        )}
                         <div className="mt-2 text-xs text-slate-400">{item.items.length} пунктов проверки</div>
                         <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                           {attachedProtocolId === item.id && (

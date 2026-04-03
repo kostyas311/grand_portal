@@ -432,7 +432,6 @@ export class AdminRequestsService {
       message: `В обращении ${publicId} вас упомянули ${contextLabel}.${compactMentionPreview(text) ? ` Текст: ${compactMentionPreview(text)}` : ''}`,
       actorId,
       recipientUserIds: mentionedUserIds,
-      excludeUserIds: [actorId],
     });
   }
 

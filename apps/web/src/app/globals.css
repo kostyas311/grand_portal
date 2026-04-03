@@ -201,9 +201,17 @@
     pointer-events: none;
   }
 
-  .mention-input .mention-token,
+  .mention-token,
   .mention-inline {
     @apply inline-flex items-center rounded-lg bg-blue-50 px-2 py-0.5 font-medium text-blue-700;
+    white-space: nowrap;
+    vertical-align: baseline;
+  }
+
+  .mention-input .mention-token,
+  .instruction-editor-canvas .mention-token,
+  .instruction-prose .mention-token {
+    cursor: default;
   }
 
   .mention-suggestions {

@@ -15,7 +15,6 @@ import { UpdateInstructionDto } from './dto/update-instruction.dto';
 import {
   compactMentionPreview,
   extractMentionedUserIdsFromHtml,
-  getNewMentionedUserIds,
 } from '../../common/utils/mentions.util';
 
 const INSTRUCTION_INCLUDE = {
@@ -228,11 +227,7 @@ export class InstructionsService {
 
     await this.notifyMentionedUsersForInstruction(
       updated,
-      getNewMentionedUserIds(
-        extractMentionedUserIdsFromHtml(instruction.contentHtml),
-        extractMentionedUserIdsFromHtml(nextContentHtml),
-        [userId],
-      ),
+      extractMentionedUserIdsFromHtml(nextContentHtml),
       userId,
       'в тексте инструкции',
       nextContentHtml,
@@ -654,7 +649,6 @@ export class InstructionsService {
       message: `В инструкции «${instruction.title}» вас упомянули ${contextLabel}.${compactMentionPreview(html, 160) ? ` Текст: ${compactMentionPreview(html, 160)}` : ''}`,
       actorId,
       recipientUserIds: mentionedUserIds,
-      excludeUserIds: [actorId],
     });
   }
 }

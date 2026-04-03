@@ -135,3 +135,221 @@ export function getMentionSuggestions(users: User[], query: string) {
     )
     .slice(0, 8);
 }
+
+function isMentionTokenNode(node: Node | null) {
+  return node instanceof HTMLElement && node.matches('.mention-token');
+}
+
+function createEligibleTextWalker(root: HTMLElement) {
+  return document.createTreeWalker(
+    root,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parentElement = node.parentElement;
+        if (!parentElement || parentElement.closest('.mention-token')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+}
+
+function getClosestMentionBlock(node: Node | null, root: HTMLElement): HTMLElement | null {
+  const element =
+    node instanceof HTMLElement ? node : node?.parentElement instanceof HTMLElement ? node.parentElement : null;
+
+  if (!element) {
+    return null;
+  }
+
+  const block = element.closest(
+    'p, div, li, blockquote, td, th, pre, h1, h2, h3, h4, h5, h6',
+  );
+
+  if (!block || !root.contains(block)) {
+    return root;
+  }
+
+  return block as HTMLElement;
+}
+
+function findFirstTextNode(node: Node | null): Text | null {
+  if (!node) {
+    return null;
+  }
+
+  const walker = document.createTreeWalker(
+    node,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(current) {
+        const parentElement = current.parentElement;
+        if (!parentElement || parentElement.closest('.mention-token')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  return walker.nextNode() as Text | null;
+}
+
+function findLastTextNode(node: Node | null): Text | null {
+  if (!node) {
+    return null;
+  }
+
+  const walker = document.createTreeWalker(
+    node,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(current) {
+        const parentElement = current.parentElement;
+        if (!parentElement || parentElement.closest('.mention-token')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+
+  let lastNode: Text | null = null;
+  let currentNode: Node | null;
+
+  while ((currentNode = walker.nextNode())) {
+    lastNode = currentNode as Text;
+  }
+
+  return lastNode;
+}
+
+function resolveCaretTextPosition(
+  root: HTMLElement,
+  range: Range,
+): { node: Text; offset: number } | null {
+  if (range.startContainer.nodeType === Node.TEXT_NODE) {
+    const textNode = range.startContainer as Text;
+    if (root.contains(textNode) && !textNode.parentElement?.closest('.mention-token')) {
+      return { node: textNode, offset: range.startOffset };
+    }
+  }
+
+  if (!(range.startContainer instanceof HTMLElement) || !root.contains(range.startContainer)) {
+    return null;
+  }
+
+  const container = range.startContainer;
+  const beforeNode = container.childNodes[range.startOffset - 1] || null;
+  const beforeText = findLastTextNode(beforeNode);
+  if (beforeText) {
+    return { node: beforeText, offset: beforeText.data.length };
+  }
+
+  const afterNode = container.childNodes[range.startOffset] || null;
+  const afterText = findFirstTextNode(afterNode);
+  if (afterText) {
+    return { node: afterText, offset: 0 };
+  }
+
+  return null;
+}
+
+export type MentionMatch = {
+  query: string;
+  startNode: Text;
+  startOffset: number;
+  endNode: Text;
+  endOffset: number;
+  rect: DOMRect;
+};
+
+export function findMentionMatchInContentEditable(root: HTMLElement): MentionMatch | null {
+  const selection = window.getSelection();
+  const range =
+    selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+  if (!range || !range.collapsed || !root.contains(range.startContainer)) {
+    return null;
+  }
+
+  if (
+    range.startContainer instanceof HTMLElement &&
+    (isMentionTokenNode(range.startContainer) || range.startContainer.closest('.mention-token'))
+  ) {
+    return null;
+  }
+
+  const caret = resolveCaretTextPosition(root, range);
+  if (!caret) {
+    return null;
+  }
+
+  const walker = createEligibleTextWalker(root);
+  const textNodes: Text[] = [];
+  let currentNode: Node | null;
+  while ((currentNode = walker.nextNode())) {
+    textNodes.push(currentNode as Text);
+  }
+
+  const currentIndex = textNodes.indexOf(caret.node);
+  if (currentIndex === -1) {
+    return null;
+  }
+
+  const caretBlock = getClosestMentionBlock(caret.node, root);
+  const parts: string[] = [];
+  for (let index = currentIndex; index >= 0; index -= 1) {
+    if (index !== currentIndex) {
+      const candidateBlock = getClosestMentionBlock(textNodes[index], root);
+      if (candidateBlock !== caretBlock) {
+        break;
+      }
+    }
+
+    const chunk = index === currentIndex
+      ? textNodes[index].data.slice(0, caret.offset)
+      : textNodes[index].data;
+    parts.unshift(chunk);
+
+    if (/\s/.test(chunk) || parts.join('').length >= 120) {
+      break;
+    }
+  }
+
+  const beforeCaret = parts.join('');
+  const match = beforeCaret.match(/(^|\s)@([^\s@]*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const mentionText = match[0].slice(match[0].lastIndexOf('@'));
+  let remaining = mentionText.length;
+  let startNode = caret.node;
+  let startOffset = caret.offset;
+
+  for (let index = currentIndex; index >= 0; index -= 1) {
+    const available = index === currentIndex ? caret.offset : textNodes[index].data.length;
+    if (remaining <= available) {
+      startNode = textNodes[index];
+      startOffset = available - remaining;
+      break;
+    }
+
+    remaining -= available;
+  }
+
+  return {
+    query: match[2] || '',
+    startNode,
+    startOffset,
+    endNode: caret.node,
+    endOffset: caret.offset,
+    rect: range.getBoundingClientRect(),
+  };
+}
